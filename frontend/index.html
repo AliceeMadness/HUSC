@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f4f1e9">
+  <title>Horario · Constructor de horarios USC</title>
+  <meta name="description" content="Elige tus grupos de expositiva, laboratorio y seminario y monta tu horario de la USC sin solapes.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23166b58'/%3E%3Cpath d='M8 9h7v7H8zM17 9h7v7h-7zM8 18h7v7H8zM17 18h7v7h-7z' fill='%23eaf6f1'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" id="brand-link" aria-label="Horario USC · Volver al inicio">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="currentColor"/></svg>
+        </span>
+        <span class="brand-name">Horario</span>
+        <span class="brand-divider" aria-hidden="true"></span>
+        <span class="brand-sub">USC</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="chip chip-year hidden" id="year-chip"></span>
+        <button class="icon-btn hidden" id="theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="btn btn-ghost hidden" id="share-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8.6 13.7 15.4 17M15.4 7 8.6 10.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="6" cy="12" r="2.4" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="5.5" r="2.4" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="18.5" r="2.4" stroke="currentColor" stroke-width="1.7"/></svg>
+          Compartir
+        </button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="landing" id="landing" aria-labelledby="landing-title">
+        <div class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Constructor de horarios · Universidade de Santiago</p>
+            <h1 id="landing-title">Tu semana,<br><em>en orden.</em></h1>
+            <p class="hero-lead">
+              Elige tus grupos de expositiva, laboratorio y seminario.
+              Nosotros comprobamos los solapes, encontramos tus huecos
+              y te dejamos un horario listo para compartir.
+            </p>
+            <div class="hero-meta">
+              <span><strong>2</strong> grados</span>
+              <span><strong>9</strong> cursos</span>
+              <span><strong>36</strong> asignaturas</span>
+            </div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="hero-card">
+              <div class="hero-card-head">
+                <span>Semana tipo</span>
+                <span class="hero-live"><i></i> sin solapes</span>
+              </div>
+              <div class="hero-grid">
+                <div class="hero-days"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span></div>
+                <div class="hero-rows">
+                  <div class="hero-row"></div><div class="hero-row"></div><div class="hero-row"></div><div class="hero-row"></div><div class="hero-row"></div>
+                </div>
+                <span class="hero-block hb-1"></span>
+                <span class="hero-block hb-2"></span>
+                <span class="hero-block hb-3"></span>
+                <span class="hero-block hb-4"></span>
+                <span class="hero-block hb-5"></span>
+                <span class="hero-block hb-6"></span>
+                <span class="hero-block hb-7"></span>
+              </div>
+              <div class="hero-foot">
+                <span class="hero-avatar">3º</span>
+                <span>Matemáticas · 5 materias</span>
+                <span class="hero-check">✓</span>
+              </div>
+            </div>
+            <div class="hero-note hero-note-a">12 h libres</div>
+            <div class="hero-note hero-note-b">9 grupos elegidos</div>
+          </div>
+        </div>
+
+        <div class="degrees-section">
+          <div class="section-heading">
+            <h2>¿Qué estudias?</h2>
+            <p>Escoge tu grado y curso para empezar.</p>
+          </div>
+          <div class="degree-grid" id="degree-grid">
+            <div class="degree-skeleton"></div>
+            <div class="degree-skeleton"></div>
+          </div>
+        </div>
+
+        <div class="feature-strip">
+          <div class="feature">
+            <span class="feature-icon">≠</span>
+            <div><strong>Cero solapes</strong><p>Valida cada combinación de grupos al instante.</p></div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">◷</span>
+            <div><strong>Huecos reales</strong><p>Encuentra horas libres y propón mover una clase.</p></div>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">↗</span>
+            <div><strong>Listo para compartir</strong><p>Un enlace, un PDF o un calendario .ics.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace hidden" id="workspace" aria-label="Constructor de horario">
+        <aside class="selector-panel panel">
+          <div class="panel-head">
+            <button class="back-link" id="change-year" type="button">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Cambiar curso
+            </button>
+            <h1 id="year-title">Primero</h1>
+            <p id="year-subtitle">Grado en Matemáticas</p>
+          </div>
+
+          <div class="auto-card">
+            <div class="auto-card-top">
+              <span class="auto-kicker">Piloto automático</span>
+              <span class="auto-spark" aria-hidden="true">✦</span>
+            </div>
+            <h2>Que el horario se monte solo.</h2>
+            <p>Buscamos la combinación más compacta, sin solapes y esquivando las franjas que no quieras.</p>
+            <div class="pref-row" role="group" aria-label="Preferencias">
+              <label class="pref"><input type="checkbox" id="pref-no-friday"><span>Sin viernes</span></label>
+              <label class="pref"><input type="checkbox" id="pref-no-early"><span>Sin 8:00</span></label>
+              <label class="pref"><input type="checkbox" id="pref-no-late"><span>Sin 19:00+</span></label>
+            </div>
+            <button class="btn btn-accent btn-wide" id="auto-btn" type="button">
+              <span class="btn-label">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5l1.5 4.4 4.5 1.6-4.5 1.6L12 15.5l-1.5-4.4L6 9.5l4.5-1.6L12 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" fill="currentColor"/></svg>
+                Generar horario
+              </span>
+              <span class="spinner hidden" aria-hidden="true"></span>
+            </button>
+            <p class="auto-hint" id="auto-hint">Si hay optativas incompatibles, elegimos el mayor subconjunto posible.</p>
+          </div>
+
+          <div class="panel-section-head">
+            <h2>Materias y grupos</h2>
+            <span id="selection-count">0 grupos</span>
+          </div>
+          <div class="subject-list" id="subjects" aria-live="polite"></div>
+        </aside>
+
+        <div class="main-column">
+          <div class="timetable-panel panel">
+            <div class="calendar-toolbar">
+              <div class="status-line" id="status-line">
+                <span class="status-pill is-empty" id="conflict-pill">Sin grupos</span>
+                <span class="stat-sep" aria-hidden="true"></span>
+                <span class="stat" id="hours-stat">0 h / semana</span>
+                <span class="stat-sep" aria-hidden="true"></span>
+                <span class="stat" id="days-stat">0 días</span>
+              </div>
+              <div class="toolbar-actions">
+                <button class="btn btn-quiet" id="export-btn" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v2.5h14V17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Exportar
+                </button>
+                <button class="icon-btn icon-btn-small" id="print-btn" type="button" aria-label="Imprimir" title="Imprimir">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 9V4h10v5M7 18H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 14h10v6H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="alerts" id="alerts" aria-live="polite"></div>
+            <div class="timetable-scroll" id="timetable-scroll">
+              <div id="timetable"></div>
+            </div>
+          </div>
+
+          <div class="insights">
+            <section class="insight-card panel" aria-labelledby="free-title">
+              <div class="insight-head">
+                <div>
+                  <p class="insight-kicker">Tu tiempo</p>
+                  <h2 id="free-title">Huecos libres</h2>
+                </div>
+                <div class="segmented" id="free-duration" role="group" aria-label="Duración mínima">
+                  <button type="button" data-min="30">30′</button>
+                  <button type="button" data-min="60" class="is-active">1 h</button>
+                  <button type="button" data-min="90">1,5 h</button>
+                </div>
+              </div>
+              <div class="free-slots" id="free-slots">
+                <p class="empty-copy">Elige algún grupo para ver tus huecos.</p>
+              </div>
+            </section>
+
+            <section class="insight-card panel" id="move-card" aria-labelledby="move-title">
+              <div class="insight-head">
+                <div>
+                  <p class="insight-kicker">Modo profesor</p>
+                  <h2 id="move-title">Mover una clase</h2>
+                </div>
+                <button class="icon-btn icon-btn-small hidden" id="exit-move" type="button" aria-label="Salir del modo mover" title="Salir">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+              <div class="move-panel" id="move-panel">
+                <p class="empty-copy">Haz clic en cualquier clase del calendario para ver dónde podría encajar sin solaparse con el resto de tu semana.</p>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-region" id="toast" aria-live="assertive" aria-atomic="true"></div>
+
+  <dialog class="dialog" id="share-dialog">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">Enlace mágico</p>
+        <h2>Comparte tu horario</h2>
+      </div>
+      <button class="icon-btn icon-btn-small" type="button" data-close-dialog aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p class="dialog-copy">Quien abra el enlace verá tu misma combinación de grupos. No hace falta cuenta.</p>
+    <div class="copy-row">
+      <input id="share-url" type="text" readonly aria-label="Enlace para compartir">
+      <button class="btn btn-accent" id="copy-share" type="button">Copiar</button>
+    </div>
+    <p class="dialog-foot" id="share-note">El enlace se guarda en este servidor.</p>
+  </dialog>
+
+  <dialog class="dialog" id="export-dialog">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">Llevátelo</p>
+        <h2>Exportar horario</h2>
+      </div>
+      <button class="icon-btn icon-btn-small" type="button" data-close-dialog aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="export-grid">
+      <button class="export-option" id="export-json" type="button">
+        <span class="export-icon">{ }</span>
+        <span><strong>JSON</strong><small>Todos los datos, serializados</small></span>
+      </button>
+      <button class="export-option" id="export-ics" type="button">
+        <span class="export-icon">◷</span>
+        <span><strong>Calendario .ics</strong><small>15 semanas desde el próximo lunes</small></span>
+      </button>
+      <button class="export-option" id="export-print" type="button">
+        <span class="export-icon">⌘</span>
+        <span><strong>Imprimir / PDF</strong><small>Vista limpia para papel</small></span>
+      </button>
+    </div>
+  </dialog>
+
+  <noscript>
+    <div class="noscript">Esta aplicación necesita JavaScript para construir el horario.</div>
+  </noscript>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

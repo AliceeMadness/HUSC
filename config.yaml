@@ -1,0 +1,29 @@
+# Lista de cursos y URLs para los horarios
+cursos:
+  - curso: "Primero"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/19627-1/26/7?_wrapper_format=drupal_ajax"
+
+  - curso: "Segundo"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/11930-2/26/7?_wrapper_format=drupal_ajax"
+
+  - curso: "Tercero"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/11930-3/26/7?_wrapper_format=drupal_ajax"
+
+  - curso: "Cuarto"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/11930-4/26/7?_wrapper_format=drupal_ajax"
+
+  - curso: "Primero Mates-Física"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-1/26/7?_wrapper_format=drupal_ajax"
+  - curso: "Segundo Mates-Física"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-2/26/7?_wrapper_format=drupal_ajax"
+  - curso: "Tercero Mates-Física"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-3/26/7?_wrapper_format=drupal_ajax"
+  - curso: "Cuarto Mates-Física"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-4/26/7?_wrapper_format=drupal_ajax"
+  - curso: "Quinto Mates-Física"
+    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-5/26/7?_wrapper_format=drupal_ajax"
+
+chrome_data_dir: chrome/selenium
+chromedriver_path: chrome/chromedriver.exe
+timetable_path: output/horario.csv
+forms_data_path: output/forms_data.json

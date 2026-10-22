@@ -1,0 +1,309 @@
+{
+    "Primero": {
+        "Topología de los espacios euclídeos": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Cálculo numérico en una variable": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Álgebra lineal": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Derivación e integración de funciones de una variable real": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ]
+    },
+    "Segundo": {
+        "Introducción a las Ecuaciones Diferenciales Ordinarias": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06",
+            "CLIL07",
+            "CLIL08"
+        ],
+        "Geometría Lineal": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Series Funcionales e Integración de Riemann en varias Variables Reales": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06",
+            "CLIL07",
+            "CLIL08"
+        ],
+        "Análisis Numérico Matricial": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06",
+            "CLIL07",
+            "CLIL08"
+        ],
+        "Curvas y Superficies": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ]
+    },
+    "Tercero": {
+        "Inferencia Estadística": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Topología de Superficies": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Ecuaciones Algebraicas": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Teoría Global de Superficies": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ],
+        "Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04",
+            "CLIL05",
+            "CLIL06"
+        ]
+    },
+    "Cuarto": {
+        "Taller de Simulación Numérica": [
+            "CLE01",
+            "CLIL01",
+            "CLIL02"
+        ],
+        "Álgebra, Números y Geometría": [
+            "CLE01",
+            "CLIL01"
+        ],
+        "Ecuaciones Diferenciales": [
+            "CLE01",
+            "CLIS01",
+            "CLIL01",
+            "CLIL02"
+        ],
+        "Topología Algebraica": [
+            "CLE01",
+            "CLIL01"
+        ],
+        "Teoría de Juegos": [
+            "CLE01",
+            "CLIS01",
+            "CLIS02",
+            "CLIL01",
+            "CLIL02"
+        ],
+        "Historia de la Matemática": [
+            "CLE01",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03"
+        ],
+        "Códigos Correctores y Criptografía": [
+            "CLE01",
+            "CLIL01"
+        ]
+    },
+    "Primero Mates-Física": {
+        "Física General II": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04"
+        ]
+    },
+    "Segundo Mates-Física": {
+        "Termodinámica y Teoría Cinética": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04"
+        ],
+        "Mecánica Clásica II": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04"
+        ]
+    },
+    "Tercero Mates-Física": {
+        "Electromagnetismo II": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04"
+        ]
+    },
+    "Cuarto Mates-Física": {
+        "Física de Partículas Elementales": [
+            "CLE01",
+            "CLIS01"
+        ],
+        "Nanomagnetismo y Nanotecnología": [
+            "CLE01",
+            "CLIS01",
+            "CLIS02"
+        ],
+        "Gravitación": [
+            "CLE01",
+            "CLIS01",
+            "CLIS02"
+        ],
+        "Física Cuántica II": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04"
+        ],
+        "Óptica II": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04"
+        ],
+        "Mecánica Estadística": [
+            "CLE01",
+            "CLE02",
+            "CLIS01",
+            "CLIS02",
+            "CLIS03",
+            "CLIS04"
+        ],
+        "Física de las Energías": [
+            "CLE01"
+        ],
+        "Física Nuclear": [
+            "CLE01",
+            "CLIS01"
+        ],
+        "Superconductores y Superfluidos": [
+            "CLE01"
+        ],
+        "Física Médica": [
+            "CLE01"
+        ]
+    },
+    "Quinto Mates-Física": {
+        "Astrofísica y Cosmología": [
+            "CLE01",
+            "CLE02",
+            "CLIL01",
+            "CLIL02",
+            "CLIL03",
+            "CLIL04"
+        ]
+    }
+}

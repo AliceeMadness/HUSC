@@ -1,0 +1,387 @@
+﻿Curso;Slot;Asignatura;Grupo;Aula;Hora
+Primero;L09;Cálculo numérico en una variable;CLE02;Aula 02;09:00-10:00
+Primero;L09;Topología de los espacios euclídeos;CLIL03;Aula 09;09:00-10:00
+Primero;L10;Topología de los espacios euclídeos;CLIL02;Aula 09;10:00-11:00
+Primero;L10;Topología de los espacios euclídeos;CLE02;Aula 06;10:00-11:00
+Primero;L11;Topología de los espacios euclídeos;CLIL01;Aula 09;11:00-12:00
+Primero;L11;Álgebra lineal;CLE02;Aula 06;11:00-12:00
+Primero;L12;Álgebra lineal;CLIL03;Aula 08;12:00-13:00
+Primero;L12;Derivación e integración de funciones de una variable real;CLIL02;Aula 09;12:00-13:00
+Primero;L12;Derivación e integración de funciones de una variable real;CLE02;Aula 06;12:00-13:00
+Primero;L12;Cálculo numérico en una variable;CLIL01;Aula de informática 2;12:00-13:00
+Primero;L13;Álgebra lineal;CLIL03;Aula 08;13:00-14:00
+Primero;L13;Derivación e integración de funciones de una variable real;CLIL02;Aula 09;13:00-14:00
+Primero;L13;Derivación e integración de funciones de una variable real;CLE02;Aula 06;13:00-14:00
+Primero;L13;Cálculo numérico en una variable;CLIL01;Aula de informática 2;13:00-14:00
+Primero;L15;Topología de los espacios euclídeos;CLIL06;Aula 10;15:00-16:00
+Primero;M09;Álgebra lineal;CLIL05;Aula 09;09:00-10:00
+Primero;M09;Álgebra lineal;CLIL02;Aula 05;09:00-10:00
+Primero;M09;Cálculo numérico en una variable;CLIL06;Aula de informática 3;09:00-10:00
+Primero;M09;Cálculo numérico en una variable;CLIL03;Aula de informática 2;09:00-10:00
+Primero;M09;Derivación e integración de funciones de una variable real;CLIL01;Aula 08;09:00-10:00
+Primero;M09;Derivación e integración de funciones de una variable real;CLIL04;Aula 07;09:00-10:00
+Primero;M10;Cálculo numérico en una variable;CLIL06;Aula de informática 3;10:00-11:00
+Primero;M10;Cálculo numérico en una variable;CLIL03;Aula de informática 2;10:00-11:00
+Primero;M10;Derivación e integración de funciones de una variable real;CLIL01;Aula 08;10:00-11:00
+Primero;M10;Derivación e integración de funciones de una variable real;CLIL04;Aula 07;10:00-11:00
+Primero;M10;Álgebra lineal;CLIL02;Aula 05;10:00-11:00
+Primero;M10;Álgebra lineal;CLIL05;Aula 09;10:00-11:00
+Primero;M11;Topología de los espacios euclídeos;CLE01;Aula 02;11:00-12:00
+Primero;M11;Topología de los espacios euclídeos;CLE02;Aula 06;11:00-12:00
+Primero;M12;Derivación e integración de funciones de una variable real;CLIL06;Aula 07;12:00-13:00
+Primero;M12;Derivación e integración de funciones de una variable real;CLIL03;Aula 08;12:00-13:00
+Primero;M12;Álgebra lineal;CLIL04;Aula 01;12:00-13:00
+Primero;M12;Álgebra lineal;CLIL01;Aula 05;12:00-13:00
+Primero;M12;Cálculo numérico en una variable;CLIL02;Aula de informática 2;12:00-13:00
+Primero;M12;Cálculo numérico en una variable;CLIL05;Aula de informática 3;12:00-13:00
+Primero;M13;Álgebra lineal;CLIL01;Aula 05;13:00-14:00
+Primero;M13;Álgebra lineal;CLIL04;Aula 01;13:00-14:00
+Primero;M13;Derivación e integración de funciones de una variable real;CLIL06;Aula 07;13:00-14:00
+Primero;M13;Derivación e integración de funciones de una variable real;CLIL03;Aula 08;13:00-14:00
+Primero;M13;Cálculo numérico en una variable;CLIL05;Aula de informática 3;13:00-14:00
+Primero;M13;Cálculo numérico en una variable;CLIL02;Aula de informática 2;13:00-14:00
+Primero;M16;Topología de los espacios euclídeos;CLIL04;Aula 05;16:00-17:00
+Primero;X10;Cálculo numérico en una variable;CLIL04;Aula de informática 4;10:00-11:00
+Primero;X10;Álgebra lineal;CLIL06;Aula 09;10:00-11:00
+Primero;X10;Derivación e integración de funciones de una variable real;CLIL05;Aula 08;10:00-11:00
+Primero;X11;Derivación e integración de funciones de una variable real;CLE01;Aula 02;11:00-12:00
+Primero;X11;Derivación e integración de funciones de una variable real;CLIL05;Aula 08;11:00-12:00
+Primero;X11;Cálculo numérico en una variable;CLIL04;Aula de informática 4;11:00-12:00
+Primero;X11;Álgebra lineal;CLIL06;Aula 09;11:00-12:00
+Primero;X12;Álgebra lineal;CLE01;Aula 02;12:00-13:00
+Primero;X12;Derivación e integración de funciones de una variable real;CLE02;Aula 06;12:00-13:00
+Primero;X13;Álgebra lineal;CLE02;Aula 06;13:00-14:00
+Primero;X13;Cálculo numérico en una variable;CLE01;Aula 02;13:00-14:00
+Primero;X16;Topología de los espacios euclídeos;CLIL05;Aula 05;16:00-17:00
+Primero;J09;Derivación e integración de funciones de una variable real;CLE01;Aula 02;09:00-10:00
+Primero;J09;Cálculo numérico en una variable;CLE02;Aula 06;09:00-10:00
+Primero;J10;Álgebra lineal;CLE02;Aula 06;10:00-11:00
+Primero;J10;Derivación e integración de funciones de una variable real;CLE01;Aula 02;10:00-11:00
+Primero;J11;Derivación e integración de funciones de una variable real;CLIL06;Aula 08;11:00-12:00
+Primero;J11;Álgebra lineal;CLE01;Aula 02;11:00-12:00
+Primero;J11;Álgebra lineal;CLIL04;Aula 01;11:00-12:00
+Primero;J11;Topología de los espacios euclídeos;CLIL05;Aula 05;11:00-12:00
+Primero;J12;Topología de los espacios euclídeos;CLE01;Aula 02;12:00-13:00
+Primero;J12;Topología de los espacios euclídeos;CLIL06;Aula 08;12:00-13:00
+Primero;J12;Álgebra lineal;CLIL05;Aula 05;12:00-13:00
+Primero;J12;Derivación e integración de funciones de una variable real;CLIL04;Aula 01;12:00-13:00
+Primero;J13;Derivación e integración de funciones de una variable real;CLIL05;Aula 05;13:00-14:00
+Primero;J13;Topología de los espacios euclídeos;CLIL04;Aula 01;13:00-14:00
+Primero;J13;Álgebra lineal;CLIL06;Aula 08;13:00-14:00
+Primero;J13;Cálculo numérico en una variable;CLE01;Aula 02;13:00-14:00
+Primero;V09;Álgebra lineal;CLE01;Aula 02;09:00-10:00
+Primero;V10;Derivación e integración de funciones de una variable real;CLIL03;Aula 09;10:00-11:00
+Primero;V10;Topología de los espacios euclídeos;CLIL02;Aula 07;10:00-11:00
+Primero;V10;Álgebra lineal;CLIL01;Aula 08;10:00-11:00
+Primero;V11;Derivación e integración de funciones de una variable real;CLIL01;Aula 08;11:00-12:00
+Primero;V11;Topología de los espacios euclídeos;CLIL03;Aula 09;11:00-12:00
+Primero;V11;Álgebra lineal;CLIL02;Aula 07;11:00-12:00
+Primero;V12;Derivación e integración de funciones de una variable real;CLIL02;Aula 07;12:00-13:00
+Primero;V12;Álgebra lineal;CLIL03;Aula 09;12:00-13:00
+Primero;V12;Topología de los espacios euclídeos;CLIL01;Aula 08;12:00-13:00
+Segundo;L15;Geometría Lineal;CLE01;Aula 02;15:00-16:00
+Segundo;L15;Introducción a las Ecuaciones Diferenciales Ordinarias;CLE02;Aula 03;15:00-16:00
+Segundo;L16;Análisis Numérico Matricial;CLE01;Aula 02;16:00-17:00
+Segundo;L16;Series Funcionales e Integración de Riemann en varias Variables Reales;CLE02;Aula 03;16:00-17:00
+Segundo;L17;Curvas y Superficies;CLE01;Aula 02;17:00-18:00
+Segundo;L17;Geometría Lineal;CLE02;Aula 03;17:00-18:00
+Segundo;L18;Curvas y Superficies;CLE02;Aula 03;18:00-19:00
+Segundo;L18;Introducción a las Ecuaciones Diferenciales Ordinarias;CLE01;Aula 02;18:00-19:00
+Segundo;L19;Series Funcionales e Integración de Riemann en varias Variables Reales;CLE01;Aula 02;19:00-20:00
+Segundo;L19;Análisis Numérico Matricial;CLE02;Aula 03;19:00-20:00
+Segundo;M15;Geometría Lineal;CLE01;Aula 02;15:00-16:00
+Segundo;M15;Introducción a las Ecuaciones Diferenciales Ordinarias;CLE02;Aula 03;15:00-16:00
+Segundo;M16;Análisis Numérico Matricial;CLE01;Aula 02;16:00-17:00
+Segundo;M16;Series Funcionales e Integración de Riemann en varias Variables Reales;CLE02;Aula 03;16:00-17:00
+Segundo;M17;Geometría Lineal;CLE02;Aula 03;17:00-18:00
+Segundo;M17;Curvas y Superficies;CLE01;Aula 02;17:00-18:00
+Segundo;M18;Curvas y Superficies;CLE02;Aula 03;18:00-19:00
+Segundo;M18;Introducción a las Ecuaciones Diferenciales Ordinarias;CLE01;Aula 02;18:00-19:00
+Segundo;M19;Series Funcionales e Integración de Riemann en varias Variables Reales;CLE01;Aula 02;19:00-20:00
+Segundo;M19;Análisis Numérico Matricial;CLE02;Aula 03;19:00-20:00
+Segundo;X15;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL02;Aula de informática 2;15:00-16:00
+Segundo;X15;Curvas y Superficies;CLE02;Aula 03;15:00-16:00
+Segundo;X15;Análisis Numérico Matricial;CLIL03;Aula de informática 4;15:00-16:00
+Segundo;X15;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL01;Aula 09;15:00-16:00
+Segundo;X16;Análisis Numérico Matricial;CLIL03;Aula de informática 4;16:00-17:00
+Segundo;X16;Análisis Numérico Matricial;CLIL08;Aula de informática 3;16:00-17:00
+Segundo;X16;Geometría Lineal;CLIL05;Aula 08;16:00-17:00
+Segundo;X16;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL01;Aula de informática 2;16:00-17:00
+Segundo;X16;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL02;Aula 09;16:00-17:00
+Segundo;X16;Curvas y Superficies;CLIL04;Aula 07;16:00-17:00
+Segundo;X17;Análisis Numérico Matricial;CLIL08;Aula de informática 3;17:00-18:00
+Segundo;X17;Curvas y Superficies;CLIL05;Aula 08;17:00-18:00
+Segundo;X17;Geometría Lineal;CLE01;Aula 02;17:00-18:00
+Segundo;X17;Geometría Lineal;CLIL04;Aula 07;17:00-18:00
+Segundo;X18;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL04;Aula de informática 2;18:00-19:00
+Segundo;X18;Geometría Lineal;CLIL06;Aula 07;18:00-19:00
+Segundo;X18;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL03;Aula 09;18:00-19:00
+Segundo;X18;Análisis Numérico Matricial;CLIL02;Aula de informática 4;18:00-19:00
+Segundo;X18;Análisis Numérico Matricial;CLIL06;Aula de informática 3;18:00-19:00
+Segundo;X19;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL04;Aula 09;19:00-20:00
+Segundo;X19;Curvas y Superficies;CLIL06;Aula 07;19:00-20:00
+Segundo;X19;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL03;Aula de informática 2;19:00-20:00
+Segundo;X19;Análisis Numérico Matricial;CLIL02;Aula de informática 4;19:00-20:00
+Segundo;X19;Análisis Numérico Matricial;CLIL06;Aula de informática 3;19:00-20:00
+Segundo;J15;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL05;Aula 09;15:00-16:00
+Segundo;J15;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL06;Aula de informática 3;15:00-16:00
+Segundo;J15;Curvas y Superficies;CLE01;Aula 02;15:00-16:00
+Segundo;J15;Análisis Numérico Matricial;CLIL07;Aula de informática 4;15:00-16:00
+Segundo;J16;Análisis Numérico Matricial;CLIL07;Aula de informática 4;16:00-17:00
+Segundo;J16;Análisis Numérico Matricial;CLIL01;Aula de informática 2;16:00-17:00
+Segundo;J16;Geometría Lineal;CLIL03;Aula 07;16:00-17:00
+Segundo;J16;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL05;Aula de informática 3;16:00-17:00
+Segundo;J16;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL06;Aula 09;16:00-17:00
+Segundo;J16;Curvas y Superficies;CLIL02;Aula 08;16:00-17:00
+Segundo;J17;Análisis Numérico Matricial;CLIL01;Aula de informática 2;17:00-18:00
+Segundo;J17;Curvas y Superficies;CLIL03;Aula 08;17:00-18:00
+Segundo;J17;Geometría Lineal;CLIL02;Aula 07;17:00-18:00
+Segundo;J17;Geometría Lineal;CLE02;Aula 03;17:00-18:00
+Segundo;J18;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL08;Aula 09;18:00-19:00
+Segundo;J18;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL07;Aula de informática 3;18:00-19:00
+Segundo;J18;Análisis Numérico Matricial;CLIL05;Aula de informática 4;18:00-19:00
+Segundo;J18;Análisis Numérico Matricial;CLIL04;Aula de informática 2;18:00-19:00
+Segundo;J18;Geometría Lineal;CLIL01;Aula 08;18:00-19:00
+Segundo;J19;Curvas y Superficies;CLIL01;Aula 08;19:00-20:00
+Segundo;J19;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIL07;Aula 09;19:00-20:00
+Segundo;J19;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIL08;Aula de informática 3;19:00-20:00
+Segundo;J19;Análisis Numérico Matricial;CLIL05;Aula de informática 4;19:00-20:00
+Segundo;J19;Análisis Numérico Matricial;CLIL04;Aula de informática 2;19:00-20:00
+Segundo;V15;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIS01;Aula 06;15:00-16:00
+Segundo;V15;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIS04;Aula 09;15:00-16:00
+Segundo;V15;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIS02;Aula 07;15:00-16:00
+Segundo;V15;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIS03;Aula 08;15:00-16:00
+Segundo;V16;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIS02;Aula 07;16:00-17:00
+Segundo;V16;Series Funcionales e Integración de Riemann en varias Variables Reales;CLIS03;Aula 09;16:00-17:00
+Segundo;V16;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIS04;Aula 08;16:00-17:00
+Segundo;V16;Introducción a las Ecuaciones Diferenciales Ordinarias;CLIS01;Aula 06;16:00-17:00
+Tercero;L09;Inferencia Estadística;CLE01;Aula 03;09:00-10:00
+Tercero;L10;Inferencia Estadística;CLE02;Aula 02;10:00-11:00
+Tercero;L10;Topología de Superficies;CLE01;Aula 03;10:00-11:00
+Tercero;L11;Topología de Superficies;CLE02;Aula 02;11:00-12:00
+Tercero;L11;Ecuaciones Algebraicas;CLE01;Aula 03;11:00-12:00
+Tercero;L12;Teoría Global de Superficies;CLE01;Aula 03;12:00-13:00
+Tercero;L12;Ecuaciones Algebraicas;CLE02;Aula 02;12:00-13:00
+Tercero;L13;Teoría Global de Superficies;CLE02;Aula 02;13:00-14:00
+Tercero;L13;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLE01;Aula 03;13:00-14:00
+Tercero;M09;Inferencia Estadística;CLE02;Aula 06;09:00-10:00
+Tercero;M09;Ecuaciones Algebraicas;CLE01;Aula 03;09:00-10:00
+Tercero;M10;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLE02;Aula 06;10:00-11:00
+Tercero;M10;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIS02;Aula 02;10:00-11:00
+Tercero;M10;Inferencia Estadística;CLIS01;Aula 03;10:00-11:00
+Tercero;M11;Topología de Superficies;CLE02;Aula 03;11:00-12:00
+Tercero;M11;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIS01;Aula 07;11:00-12:00
+Tercero;M11;Inferencia Estadística;CLIS02;Aula 08;11:00-12:00
+Tercero;M12;Teoría Global de Superficies;CLE01;Aula 03;12:00-13:00
+Tercero;M12;Ecuaciones Algebraicas;CLE02;Aula 06;12:00-13:00
+Tercero;M13;Topología de Superficies;CLE01;Aula 03;13:00-14:00
+Tercero;M13;Teoría Global de Superficies;CLE02;Aula 06;13:00-14:00
+Tercero;X09;Topología de Superficies;CLIL04;Aula 07;09:00-10:00
+Tercero;X09;Inferencia Estadística;CLIL05;Aula de informática 3;09:00-10:00
+Tercero;X09;Inferencia Estadística;CLE01;Aula 03;09:00-10:00
+Tercero;X09;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIL06;Aula de informática 2;09:00-10:00
+Tercero;X10;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIL05;Aula de informática 3;10:00-11:00
+Tercero;X10;Inferencia Estadística;CLIL04;Aula de informática 2;10:00-11:00
+Tercero;X10;Topología de Superficies;CLIL06;Aula 07;10:00-11:00
+Tercero;X10;Ecuaciones Algebraicas;CLE01;Aula 03;10:00-11:00
+Tercero;X11;Topología de Superficies;CLIL05;Aula 07;11:00-12:00
+Tercero;X11;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIL04;Aula de informática 2;11:00-12:00
+Tercero;X11;Teoría Global de Superficies;CLE01;Aula 03;11:00-12:00
+Tercero;X11;Inferencia Estadística;CLIL06;Aula de informática 3;11:00-12:00
+Tercero;X12;Ecuaciones Algebraicas;CLE02;Aula 03;12:00-13:00
+Tercero;X12;Teoría Global de Superficies;CLIL01;Aula 08;12:00-13:00
+Tercero;X13;Teoría Global de Superficies;CLE02;Aula 03;13:00-14:00
+Tercero;J09;Inferencia Estadística;CLIS03;Aula 08;09:00-10:00
+Tercero;J09;Inferencia Estadística;CLIL02;Aula de informática 2;09:00-10:00
+Tercero;J09;Ecuaciones Algebraicas;CLIL03;Aula 07;09:00-10:00
+Tercero;J09;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIS04;Aula 03;09:00-10:00
+Tercero;J10;Inferencia Estadística;CLIL03;Aula de informática 3;10:00-11:00
+Tercero;J10;Inferencia Estadística;CLIS04;Aula 08;10:00-11:00
+Tercero;J10;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIL02;Aula de informática 2;10:00-11:00
+Tercero;J10;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIS03;Aula 03;10:00-11:00
+Tercero;J10;Ecuaciones Algebraicas;CLIL01;Aula 07;10:00-11:00
+Tercero;J11;Topología de Superficies;CLIL03;Aula 07;11:00-12:00
+Tercero;J11;Teoría Global de Superficies;CLIL05;Aula 06;11:00-12:00
+Tercero;J11;Inferencia Estadística;CLIL01;Aula de informática 3;11:00-12:00
+Tercero;J11;Ecuaciones Algebraicas;CLIL06;Aula 03;11:00-12:00
+Tercero;J11;Ecuaciones Algebraicas;CLIL02;Aula 09;11:00-12:00
+Tercero;J12;Teoría Global de Superficies;CLIL06;Aula 03;12:00-13:00
+Tercero;J12;Teoría Global de Superficies;CLIL02;Aula 09;12:00-13:00
+Tercero;J12;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIL03;Aula de informática 2;12:00-13:00
+Tercero;J12;Ecuaciones Algebraicas;CLIL04;Aula 06;12:00-13:00
+Tercero;J12;Topología de Superficies;CLIL01;Aula 07;12:00-13:00
+Tercero;J13;Ecuaciones Algebraicas;CLIL05;Aula 03;13:00-14:00
+Tercero;J13;Topología de Superficies;CLIL02;Aula 07;13:00-14:00
+Tercero;J13;Teoría Global de Superficies;CLIL03;Aula 09;13:00-14:00
+Tercero;J13;Teoría Global de Superficies;CLIL04;Aula 06;13:00-14:00
+Tercero;J13;Series de Fourier e Introducción a las Ecuaciones en Derivadas Parciales;CLIL01;Aula de informática 2;13:00-14:00
+Cuarto;L10;Taller de Simulación Numérica;CLE01;Aula de informática 4;10:00-11:00
+Cuarto;L11;Taller de Simulación Numérica;CLIL02;Aula de informática 4;11:00-12:00
+Cuarto;L12;Álgebra, Números y Geometría;CLE01;Aula 05;12:00-13:00
+Cuarto;L12;Taller de Simulación Numérica;CLIL01;Aula de informática 4;12:00-13:00
+Cuarto;L13;Taller de Simulación Numérica;CLIL01;Aula de informática 4;13:00-14:00
+Cuarto;L13;Álgebra, Números y Geometría;CLE01;Aula 05;13:00-14:00
+Cuarto;L15;Ecuaciones Diferenciales;CLE01;Aula 06;15:00-16:00
+Cuarto;L16;Topología Algebraica;CLIL01;Aula 06;16:00-17:00
+Cuarto;L17;Teoría de Juegos;CLE01;Aula 06;17:00-18:00
+Cuarto;L18;Historia de la Matemática;CLE01;Aula 06;18:00-19:00
+Cuarto;M10;Taller de Simulación Numérica;CLIL02;Aula de informática 4;10:00-11:00
+Cuarto;M11;Taller de Simulación Numérica;CLIL02;Aula de informática 4;11:00-12:00
+Cuarto;M12;Álgebra, Números y Geometría;CLIL01;Aula 02;12:00-13:00
+Cuarto;M12;Taller de Simulación Numérica;CLIL01;Aula de informática 4;12:00-13:00
+Cuarto;M13;Álgebra, Números y Geometría;CLE01;Aula 02;13:00-14:00
+Cuarto;M15;Ecuaciones Diferenciales;CLE01;Aula 06;15:00-16:00
+Cuarto;M16;Ecuaciones Diferenciales;CLIL02;Aula 07;16:00-17:00
+Cuarto;M16;Teoría de Juegos;CLIS01;Aula 06;16:00-17:00
+Cuarto;M17;Teoría de Juegos;CLIS02;Aula 06;17:00-18:00
+Cuarto;M17;Ecuaciones Diferenciales;CLIL01;Aula 07;17:00-18:00
+Cuarto;M18;Historia de la Matemática;CLE01;Aula 06;18:00-19:00
+Cuarto;X10;Códigos Correctores y Criptografía;CLE01;Aula 01;10:00-11:00
+Cuarto;X11;Códigos Correctores y Criptografía;CLE01;Aula 01;11:00-12:00
+Cuarto;X12;Topología Algebraica;CLE01;Aula 01;12:00-13:00
+Cuarto;X13;Topología Algebraica;CLE01;Aula 01;13:00-14:00
+Cuarto;X15;Ecuaciones Diferenciales;CLIS01;Aula 06;15:00-16:00
+Cuarto;X16;Topología Algebraica;CLE01;Aula 06;16:00-17:00
+Cuarto;X17;Teoría de Juegos;CLE01;Aula 06;17:00-18:00
+Cuarto;X18;Historia de la Matemática;CLE01;Aula 06;18:00-19:00
+Cuarto;J10;Códigos Correctores y Criptografía;CLE01;Aula 09;10:00-11:00
+Cuarto;J11;Códigos Correctores y Criptografía;CLIL01;Aula de informática 2;11:00-12:00
+Cuarto;J16;Teoría de Juegos;CLIL01;Aula 06;16:00-17:00
+Cuarto;J16;Historia de la Matemática;CLIL03;Aula 02;16:00-17:00
+Cuarto;J17;Teoría de Juegos;CLIL02;Aula 06;17:00-18:00
+Cuarto;J17;Historia de la Matemática;CLIL01;Aula 02;17:00-18:00
+Cuarto;J18;Historia de la Matemática;CLIL02;Aula 02;18:00-19:00
+Primero Mates-Física;L09;Física General II;CLE01;Aula 6;09:00-10:00
+Primero Mates-Física;L11;Física General II;CLIS03;Aula 130;11:00-12:00
+Primero Mates-Física;L12;Física General II;CLIS04;Aula 140;12:00-13:00
+Primero Mates-Física;M09;Física General II;CLIS01;Aula 130;09:00-10:00
+Primero Mates-Física;M10;Física General II;CLIS02;Aula 140;10:00-11:00
+Primero Mates-Física;M12;Física General II;CLE02;Aula 6;12:00-13:00
+Primero Mates-Física;X09;Física General II;CLE01;Aula 6;09:00-10:00
+Primero Mates-Física;X11;Física General II;CLIS03;Aula 130;11:00-12:00
+Primero Mates-Física;X12;Física General II;CLIS04;Aula 140;12:00-13:00
+Primero Mates-Física;J09;Física General II;CLIS01;Aula 130;09:00-10:00
+Primero Mates-Física;J10;Física General II;CLIS02;Aula 140;10:00-11:00
+Primero Mates-Física;J12;Física General II;CLE02;Aula 6;12:00-13:00
+Segundo Mates-Física;L09;Termodinámica y Teoría Cinética;CLE01;Aula 0;09:00-10:00
+Segundo Mates-Física;L10;Mecánica Clásica II;CLE01;Aula 0;10:00-11:00
+Segundo Mates-Física;L16;Termodinámica y Teoría Cinética;CLIS03;Aula 6;16:00-17:00
+Segundo Mates-Física;L16;Mecánica Clásica II;CLIS04;Aula 830;16:00-17:00
+Segundo Mates-Física;L17;Termodinámica y Teoría Cinética;CLIS04;Aula 830;17:00-18:00
+Segundo Mates-Física;L17;Mecánica Clásica II;CLIS03;Aula 6;17:00-18:00
+Segundo Mates-Física;M09;Mecánica Clásica II;CLIS02;Aula 830;09:00-10:00
+Segundo Mates-Física;M09;Termodinámica y Teoría Cinética;CLIS01;Aula Magna;09:00-10:00
+Segundo Mates-Física;M10;Mecánica Clásica II;CLIS01;Aula Magna;10:00-11:00
+Segundo Mates-Física;M10;Termodinámica y Teoría Cinética;CLIS02;Aula 830;10:00-11:00
+Segundo Mates-Física;M16;Termodinámica y Teoría Cinética;CLE02;Aula 0;16:00-17:00
+Segundo Mates-Física;M17;Mecánica Clásica II;CLE02;Aula 0;17:00-18:00
+Segundo Mates-Física;X09;Termodinámica y Teoría Cinética;CLE01;Aula 0;09:00-10:00
+Segundo Mates-Física;X10;Mecánica Clásica II;CLE01;Aula 0;10:00-11:00
+Segundo Mates-Física;X16;Termodinámica y Teoría Cinética;CLIS03;Aula 6;16:00-17:00
+Segundo Mates-Física;X16;Mecánica Clásica II;CLIS04;Aula 830;16:00-17:00
+Segundo Mates-Física;X17;Termodinámica y Teoría Cinética;CLIS04;Aula 830;17:00-18:00
+Segundo Mates-Física;X17;Mecánica Clásica II;CLIS03;Aula 6;17:00-18:00
+Segundo Mates-Física;J09;Mecánica Clásica II;CLIS02;Aula 830;09:00-10:00
+Segundo Mates-Física;J09;Termodinámica y Teoría Cinética;CLIS01;Aula Magna;09:00-10:00
+Segundo Mates-Física;J10;Mecánica Clásica II;CLIS01;Aula Magna;10:00-11:00
+Segundo Mates-Física;J10;Termodinámica y Teoría Cinética;CLIS02;Aula 830;10:00-11:00
+Segundo Mates-Física;J16;Termodinámica y Teoría Cinética;CLE02;Aula 0;16:00-17:00
+Segundo Mates-Física;J17;Mecánica Clásica II;CLE02;Aula 0;17:00-18:00
+Tercero Mates-Física;L12;Electromagnetismo II;CLE01;Aula 0;12:00-13:00
+Tercero Mates-Física;L13;Electromagnetismo II;CLE01;Aula 0;13:00-14:00
+Tercero Mates-Física;L18;Electromagnetismo II;CLIS03;Aula 6;18:00-19:00
+Tercero Mates-Física;L19;Electromagnetismo II;CLIS04;Aula 830;19:00-20:00
+Tercero Mates-Física;M11;Electromagnetismo II;CLIS01;Aula Magna;11:00-12:00
+Tercero Mates-Física;M12;Electromagnetismo II;CLIS02;Aula 830;12:00-13:00
+Tercero Mates-Física;M19;Electromagnetismo II;CLE02;Aula 0;19:00-20:00
+Tercero Mates-Física;M20;Electromagnetismo II;CLE02;Aula 0;20:00-21:00
+Tercero Mates-Física;X12;Electromagnetismo II;CLE01;Aula 0;12:00-13:00
+Tercero Mates-Física;X13;Electromagnetismo II;CLE01;Aula 0;13:00-14:00
+Tercero Mates-Física;X18;Electromagnetismo II;CLIS03;Aula 6;18:00-19:00
+Tercero Mates-Física;X19;Electromagnetismo II;CLIS04;Aula 830;19:00-20:00
+Tercero Mates-Física;J11;Electromagnetismo II;CLIS01;Aula Magna;11:00-12:00
+Tercero Mates-Física;J12;Electromagnetismo II;CLIS02;Aula 830;12:00-13:00
+Tercero Mates-Física;J19;Electromagnetismo II;CLE02;Aula 0;19:00-20:00
+Tercero Mates-Física;J20;Electromagnetismo II;CLE02;Aula 0;20:00-21:00
+Cuarto Mates-Física;L09;Nanomagnetismo y Nanotecnología;CLE01;Aula Magna;09:00-10:00
+Cuarto Mates-Física;L10;Nanomagnetismo y Nanotecnología;CLE01;Aula Magna;10:00-11:00
+Cuarto Mates-Física;L09;Física de Partículas Elementales;CLE01;Aula 5;09:00-10:00
+Cuarto Mates-Física;L10;Física de Partículas Elementales;CLE01;Aula 5;10:00-11:00
+Cuarto Mates-Física;L09;Gravitación;CLIS01;Aula 830;09:00-10:00
+Cuarto Mates-Física;L10;Gravitación;CLIS01;Aula 830;10:00-11:00
+Cuarto Mates-Física;L10;Física Cuántica II;CLIS01;Aula Magna;10:30-11:30
+Cuarto Mates-Física;L10;Óptica II;CLIS02;Aula 830;10:30-11:30
+Cuarto Mates-Física;L11;Óptica II;CLIS01;Aula Magna;11:30-12:30
+Cuarto Mates-Física;L11;Física Cuántica II;CLIS02;Aula 830;11:30-12:30
+Cuarto Mates-Física;L12;Mecánica Estadística;CLIS02;Aula 830;12:30-13:30
+Cuarto Mates-Física;L13;Mecánica Estadística;CLIS02;Aula 830;13:30-14:30
+Cuarto Mates-Física;L16;Física Cuántica II;CLE02;Aula 0;16:00-17:00
+Cuarto Mates-Física;L17;Óptica II;CLE02;Aula 0;17:00-18:00
+Cuarto Mates-Física;L18;Mecánica Estadística;CLE02;Aula 0;18:00-19:00
+Cuarto Mates-Física;L19;Mecánica Estadística;CLE02;Aula 0;19:00-20:00
+Cuarto Mates-Física;M09;Física de Partículas Elementales;CLIS01;Aula 5;09:00-10:00
+Cuarto Mates-Física;M10;Física de Partículas Elementales;CLIS01;Aula 5;10:00-11:00
+Cuarto Mates-Física;M09;Física de las Energías;CLE01;Aula 0;09:00-10:00
+Cuarto Mates-Física;M10;Física de las Energías;CLE01;Aula 0;10:00-11:00
+Cuarto Mates-Física;M09;Nanomagnetismo y Nanotecnología;CLIS02;Aula C;09:00-10:00
+Cuarto Mates-Física;M10;Nanomagnetismo y Nanotecnología;CLIS02;Aula C;10:00-11:00
+Cuarto Mates-Física;M10;Física Cuántica II;CLE01;Aula 0;10:30-11:30
+Cuarto Mates-Física;M11;Óptica II;CLE01;Aula 0;11:30-12:30
+Cuarto Mates-Física;M12;Mecánica Estadística;CLE01;Aula 0;12:30-13:30
+Cuarto Mates-Física;M13;Mecánica Estadística;CLE01;Aula 0;13:30-14:30
+Cuarto Mates-Física;M16;Óptica II;CLIS04;Aula 830;16:00-17:00
+Cuarto Mates-Física;M16;Física Cuántica II;CLIS03;Aula 6;16:00-17:00
+Cuarto Mates-Física;M17;Óptica II;CLIS03;Aula 6;17:00-18:00
+Cuarto Mates-Física;M17;Física Cuántica II;CLIS04;Aula 830;17:00-18:00
+Cuarto Mates-Física;M18;Mecánica Estadística;CLIS03;Aula 6;18:00-19:00
+Cuarto Mates-Física;M19;Mecánica Estadística;CLIS03;Aula 6;19:00-20:00
+Cuarto Mates-Física;X09;Nanomagnetismo y Nanotecnología;CLIS01;Aula Magna;09:00-10:00
+Cuarto Mates-Física;X10;Nanomagnetismo y Nanotecnología;CLIS01;Aula Magna;10:00-11:00
+Cuarto Mates-Física;X09;Física Nuclear;CLE01;Aula 5;09:00-10:00
+Cuarto Mates-Física;X10;Física Nuclear;CLE01;Aula 5;10:00-11:00
+Cuarto Mates-Física;X09;Gravitación;CLIS02;Aula 830;09:00-10:00
+Cuarto Mates-Física;X10;Gravitación;CLIS02;Aula 830;10:00-11:00
+Cuarto Mates-Física;X10;Física Cuántica II;CLIS01;Aula Magna;10:30-11:30
+Cuarto Mates-Física;X10;Óptica II;CLIS02;Aula 830;10:30-11:30
+Cuarto Mates-Física;X11;Óptica II;CLIS01;Aula Magna;11:30-12:30
+Cuarto Mates-Física;X11;Física Cuántica II;CLIS02;Aula 830;11:30-12:30
+Cuarto Mates-Física;X12;Mecánica Estadística;CLIS01;Aula Magna;12:30-13:30
+Cuarto Mates-Física;X13;Mecánica Estadística;CLIS01;Aula Magna;13:30-14:30
+Cuarto Mates-Física;X16;Física Cuántica II;CLE02;Aula 0;16:00-17:00
+Cuarto Mates-Física;X17;Óptica II;CLE02;Aula 0;17:00-18:00
+Cuarto Mates-Física;J09;Física Nuclear;CLIS01;Aula 5;09:00-10:00
+Cuarto Mates-Física;J10;Física Nuclear;CLIS01;Aula 5;10:00-11:00
+Cuarto Mates-Física;J09;Física de las Energías;CLE01;Aula 0;09:00-10:00
+Cuarto Mates-Física;J10;Física de las Energías;CLE01;Aula 0;10:00-11:00
+Cuarto Mates-Física;J10;Física Cuántica II;CLE01;Aula 0;10:30-11:30
+Cuarto Mates-Física;J10;Superconductores y Superfluidos;CLE01;Aula C;10:30-11:30
+Cuarto Mates-Física;J11;Superconductores y Superfluidos;CLE01;Aula C;11:30-12:30
+Cuarto Mates-Física;J11;Óptica II;CLE01;Aula 0;11:30-12:30
+Cuarto Mates-Física;J12;Física Médica;CLE01;Aula C;12:00-13:00
+Cuarto Mates-Física;J13;Física Médica;CLE01;Aula C;13:00-14:00
+Cuarto Mates-Física;J16;Óptica II;CLIS04;Aula 830;16:00-17:00
+Cuarto Mates-Física;J16;Física Cuántica II;CLIS03;Aula 6;16:00-17:00
+Cuarto Mates-Física;J17;Óptica II;CLIS03;Aula 6;17:00-18:00
+Cuarto Mates-Física;J17;Física Cuántica II;CLIS04;Aula 830;17:00-18:00
+Cuarto Mates-Física;J18;Mecánica Estadística;CLIS04;Aula 830;18:00-19:00
+Cuarto Mates-Física;J19;Mecánica Estadística;CLIS04;Aula 830;19:00-20:00
+Cuarto Mates-Física;V09;Gravitación;CLE01;Aula 830;09:00-10:00
+Cuarto Mates-Física;V10;Gravitación;CLE01;Aula 830;10:00-11:00
+Cuarto Mates-Física;V12;Física Médica;CLE01;Aula C;12:00-13:00
+Cuarto Mates-Física;V13;Física Médica;CLE01;Aula C;13:00-14:00
+Quinto Mates-Física;L09;Astrofísica y Cosmología;CLIL01;Aula 3 (Informática);09:00-10:00
+Quinto Mates-Física;L10;Astrofísica y Cosmología;CLIL01;Aula 3 (Informática);10:00-11:00
+Quinto Mates-Física;L16;Astrofísica y Cosmología;CLE01;Aula Magna;16:00-17:00
+Quinto Mates-Física;L17;Astrofísica y Cosmología;CLE01;Aula Magna;17:00-18:00
+Quinto Mates-Física;M09;Astrofísica y Cosmología;CLIL04;Aula 3 (Informática);09:00-10:00
+Quinto Mates-Física;M10;Astrofísica y Cosmología;CLIL04;Aula 3 (Informática);10:00-11:00
+Quinto Mates-Física;M12;Astrofísica y Cosmología;CLIL02;Aula 3 (Informática);12:00-13:00
+Quinto Mates-Física;M13;Astrofísica y Cosmología;CLIL02;Aula 3 (Informática);13:00-14:00
+Quinto Mates-Física;M16;Astrofísica y Cosmología;CLE02;Aula Magna;16:00-17:00
+Quinto Mates-Física;M17;Astrofísica y Cosmología;CLE02;Aula Magna;17:00-18:00
+Quinto Mates-Física;X09;Astrofísica y Cosmología;CLIL03;Aula 3 (Informática);09:00-10:00
+Quinto Mates-Física;X10;Astrofísica y Cosmología;CLIL03;Aula 3 (Informática);10:00-11:00
+Quinto Mates-Física;X16;Astrofísica y Cosmología;CLE01;Aula Magna;16:00-17:00
+Quinto Mates-Física;X17;Astrofísica y Cosmología;CLE01;Aula Magna;17:00-18:00
+Quinto Mates-Física;J16;Astrofísica y Cosmología;CLE02;Aula Magna;16:00-17:00
+Quinto Mates-Física;J17;Astrofísica y Cosmología;CLE02;Aula Magna;17:00-18:00

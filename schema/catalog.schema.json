@@ -1,0 +1,625 @@
+{
+  "$defs": {
+    "AcademicYear": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "degree_id": {
+          "title": "Degree Id",
+          "type": "string"
+        },
+        "number": {
+          "maximum": 8,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "subject_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subject Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "degree_id",
+        "number",
+        "name"
+      ],
+      "title": "AcademicYear",
+      "type": "object"
+    },
+    "Building": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "campus_id": {
+          "title": "Campus Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "campus_id"
+      ],
+      "title": "Building",
+      "type": "object"
+    },
+    "Campus": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "City"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Campus",
+      "type": "object"
+    },
+    "ClassSession": {
+      "additionalProperties": false,
+      "description": "One weekly class meeting.\n\nTimes are stored as local wall-clock ``HH:MM`` plus an explicit day code.\nA class is never a string such as ``L09``/``09:00-10:00``: the day, start,\nend, duration and room/building references are independent fields.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "group_id": {
+          "title": "Group Id",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/GroupType"
+        },
+        "day": {
+          "$ref": "#/$defs/Day"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        },
+        "duration_minutes": {
+          "exclusiveMinimum": 0,
+          "title": "Duration Minutes",
+          "type": "integer"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "building_id": {
+          "title": "Building Id",
+          "type": "string"
+        },
+        "instructors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Instructors",
+          "type": "array"
+        },
+        "weeks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Weeks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "subject_id",
+        "group_id",
+        "type",
+        "day",
+        "start",
+        "end",
+        "duration_minutes",
+        "room_id",
+        "building_id"
+      ],
+      "title": "ClassSession",
+      "type": "object"
+    },
+    "Day": {
+      "enum": [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun"
+      ],
+      "title": "Day",
+      "type": "string"
+    },
+    "Degree": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "short_name": {
+          "title": "Short Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "short_name"
+      ],
+      "title": "Degree",
+      "type": "object"
+    },
+    "Group": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/GroupType"
+        },
+        "type_label": {
+          "title": "Type Label",
+          "type": "string"
+        },
+        "session_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Session Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "subject_id",
+        "code",
+        "type",
+        "type_label"
+      ],
+      "title": "Group",
+      "type": "object"
+    },
+    "GroupType": {
+      "enum": [
+        "expositive",
+        "laboratory",
+        "seminar",
+        "other"
+      ],
+      "title": "GroupType",
+      "type": "string"
+    },
+    "LegacyRef": {
+      "additionalProperties": false,
+      "properties": {
+        "slot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slot"
+        },
+        "row": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Row"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "title": "LegacyRef",
+      "type": "object"
+    },
+    "Room": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "building_id": {
+          "title": "Building Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "default": "classroom",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "building_id",
+        "name"
+      ],
+      "title": "Room",
+      "type": "object"
+    },
+    "SourceInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "legacy_csv": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Legacy Csv"
+        },
+        "legacy_forms": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Legacy Forms"
+        },
+        "legacy_config": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Legacy Config"
+        },
+        "imported_at": {
+          "format": "date-time",
+          "title": "Imported At",
+          "type": "string"
+        },
+        "source_week": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Week"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "imported_at"
+      ],
+      "title": "SourceInfo",
+      "type": "object"
+    },
+    "Subject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "year_id": {
+          "title": "Year Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        },
+        "group_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Group Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "year_id",
+        "name",
+        "slug"
+      ],
+      "title": "Subject",
+      "type": "object"
+    },
+    "Term": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "academic_year": {
+          "title": "Academic Year",
+          "type": "string"
+        },
+        "timezone": {
+          "default": "Europe/Madrid",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "week_start": {
+          "$ref": "#/$defs/Day",
+          "default": "mon"
+        },
+        "day_start": {
+          "default": "08:00",
+          "title": "Day Start",
+          "type": "string"
+        },
+        "day_end": {
+          "default": "21:00",
+          "title": "Day End",
+          "type": "string"
+        },
+        "weeks": {
+          "default": 15,
+          "title": "Weeks",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "academic_year"
+      ],
+      "title": "Term",
+      "type": "object"
+    },
+    "Weeks": {
+      "additionalProperties": false,
+      "properties": {
+        "from_week": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Week"
+        },
+        "to_week": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To Week"
+        }
+      },
+      "title": "Weeks",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "default": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "term": {
+      "$ref": "#/$defs/Term"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceInfo"
+    },
+    "campuses": {
+      "items": {
+        "$ref": "#/$defs/Campus"
+      },
+      "title": "Campuses",
+      "type": "array"
+    },
+    "buildings": {
+      "items": {
+        "$ref": "#/$defs/Building"
+      },
+      "title": "Buildings",
+      "type": "array"
+    },
+    "rooms": {
+      "items": {
+        "$ref": "#/$defs/Room"
+      },
+      "title": "Rooms",
+      "type": "array"
+    },
+    "degrees": {
+      "items": {
+        "$ref": "#/$defs/Degree"
+      },
+      "title": "Degrees",
+      "type": "array"
+    },
+    "years": {
+      "items": {
+        "$ref": "#/$defs/AcademicYear"
+      },
+      "title": "Years",
+      "type": "array"
+    },
+    "subjects": {
+      "items": {
+        "$ref": "#/$defs/Subject"
+      },
+      "title": "Subjects",
+      "type": "array"
+    },
+    "groups": {
+      "items": {
+        "$ref": "#/$defs/Group"
+      },
+      "title": "Groups",
+      "type": "array"
+    },
+    "class_sessions": {
+      "items": {
+        "$ref": "#/$defs/ClassSession"
+      },
+      "title": "Class Sessions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "generated_at",
+    "term",
+    "source"
+  ],
+  "title": "Catalog",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://horario.local/schema/catalog-2.0.json"
+}
