@@ -184,17 +184,64 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         return yaml.safe_load(handle) or {}
 
 
-def synthetic_rows(course_label: str, forms: dict) -> list[dict]:
+SYNTHETIC_SUBJECTS = {
+    "matematicas": [
+        "Análisis matemático",
+        "Álgebra lineal",
+        "Topología",
+        "Cálculo numérico",
+    ],
+    "fisica": ["Mecánica", "Termodinámica", "Electromagnetismo", "Óptica"],
+    "ingenieria-informatica": [
+        "Programación",
+        "Estructuras de datos",
+        "Bases de datos",
+        "Sistemas operativos",
+    ],
+    "inteligencia-artificial": [
+        "Aprendizaje automático",
+        "Redes neuronales",
+        "Procesamiento de lenguaje",
+        "Visión artificial",
+    ],
+    "informatica-matematicas": [
+        "Matemáticas para la informática",
+        "Programación",
+        "Álgebra",
+        "Estructuras de datos",
+    ],
+    "matematicas-fisica": [
+        "Análisis matemático",
+        "Mecánica",
+        "Álgebra lineal",
+        "Termodinámica",
+    ],
+}
+
+
+def synthetic_rows(
+    course_label: str,
+    forms: dict,
+    degree: dict | None = None,
+    year_number: int | None = None,
+) -> list[dict]:
     """Deterministic invented timetable for offline/demo mode.
 
     Subjects are laid over distinct weekday/morning slots so a student can pick
     one group per subject without artificial overlaps.  The names and group
-    codes come from the forms snapshot when available.
+    codes come from the forms snapshot when available; for the new degrees they
+    come from a small per-degree pool.
     """
 
-    subjects = forms.get(course_label) or {
-        "Asignatura inventada": ["CLE01", "CLIL01"]
-    }
+    subjects = forms.get(course_label)
+    if not subjects:
+        degree_id = (degree or {}).get("id", "generic")
+        pool = SYNTHETIC_SUBJECTS.get(degree_id, ["Materia 1", "Materia 2", "Materia 3"])
+        suffix = f" {year_number}º" if year_number else ""
+        subjects = {
+            f"{name}{suffix}": ["CLE01", "CLE02", "CLIL01"]
+            for name in pool
+        }
     rows = []
     for index, (subject, groups) in enumerate(subjects.items()):
         day = DAYS[index % len(DAYS)]
@@ -222,6 +269,7 @@ def synthetic_rows(course_label: str, forms: dict) -> list[dict]:
                     "subject": subject,
                     "group": group.replace("_", "").upper(),
                     "room": room,
+                    "building": (degree or {}).get("building"),
                 }
             )
     return rows
@@ -235,7 +283,7 @@ def write_legacy_csv(rows: list[dict], path: Path = CSV_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
-        writer.writerow(["Curso", "Slot", "Asignatura", "Grupo", "Aula", "Hora"])
+        writer.writerow(["Curso", "Slot", "Asignatura", "Grupo", "Aula", "Hora", "Edificio"])
         for row in rows:
             writer.writerow(
                 [
@@ -245,6 +293,7 @@ def write_legacy_csv(rows: list[dict], path: Path = CSV_PATH) -> None:
                     row["group"],
                     row["room"],
                     f"{row['start']}-{row['end']}",
+                    row.get("building") or "",
                 ]
             )
 
@@ -318,40 +367,80 @@ def sync(
 ) -> dict:
     config = load_config(config_path)
     forms = json.loads(forms_path.read_text(encoding="utf-8"))
-    courses = config.get("cursos") or []
-    if not courses:
-        raise ValueError("config.yaml no contiene la lista 'cursos'")
+    degrees = config.get("degrees") or []
+    if not degrees:
+        raise ValueError("config.yaml no contiene la lista 'degrees'")
 
     started = datetime.now(timezone.utc)
     rows: list[dict] = []
     notes: list[str] = []
+    course_map: dict[str, dict] = {}
     live_courses = 0
     synthetic_courses = 0
 
-    for entry in courses:
-        course_label = entry.get("curso", "").strip()
-        url = entry.get("url", "").strip()
-        if not course_label:
+    for degree in degrees:
+        degree_id = str(degree.get("id", "")).strip()
+        if not degree_id:
             continue
-        course_rows: list[dict] = []
-        if not force_synthetic and url:
-            try:
-                course_rows = fetch_course(url, course_label, timeout=timeout)
-                if course_rows:
-                    for row in course_rows:
-                        row["source"] = "usc"
-                    live_courses += 1
-                    notes.append(f"{course_label}: {len(course_rows)} sesiones desde la USC")
-            except Exception as error:  # noqa: BLE001 - any network/parse failure falls back
-                notes.append(f"{course_label}: fallback sintético ({type(error).__name__}: {error})")
-        if not course_rows:
-            course_rows = synthetic_rows(course_label, forms)
-            for row in course_rows:
-                row["source"] = "synthetic"
-            synthetic_courses += 1
-            if force_synthetic:
-                notes.append(f"{course_label}: sintético forzado ({len(course_rows)} sesiones)")
-        rows.extend(course_rows)
+        degree_name = degree.get("name", degree_id)
+        short_name = degree.get("short_name", degree_name)
+        default_building = degree.get("building") or "Sin edificio"
+        campus_name = degree.get("campus") or "Campus Vida"
+        for year in degree.get("years") or []:
+            number = int(year.get("number"))
+            year_name = year.get("name") or f"{number}º"
+            course_label = f"{short_name} · {number}º"
+            course_map[course_label] = {
+                "degree_key": degree_id,
+                "degree_id": f"deg-{degree_id}",
+                "degree_name": degree_name,
+                "short_name": short_name,
+                "year_number": number,
+                "year_name": year_name,
+                "building_name": default_building,
+                "campus_name": campus_name,
+            }
+            sources = year.get("sources") or []
+            course_rows: list[dict] = []
+            source_errors: list[str] = []
+            if not force_synthetic:
+                for source in sources:
+                    url = (source.get("url") or "").strip()
+                    building = source.get("building") or default_building
+                    if not url:
+                        continue
+                    try:
+                        fetched = fetch_course(url, course_label, timeout=timeout)
+                        for row in fetched:
+                            row["course"] = course_label
+                            row["building"] = building
+                            row["source"] = "usc"
+                        course_rows.extend(fetched)
+                    except Exception as error:  # noqa: BLE001 - fallback per course
+                        source_errors.append(f"{type(error).__name__}: {error}")
+
+            if force_synthetic or source_errors or not course_rows:
+                reason = "forzado" if force_synthetic else "sin fuente disponible"
+                if source_errors:
+                    reason = "; ".join(source_errors)
+                synthetic = synthetic_rows(
+                    course_label,
+                    forms,
+                    degree=degree,
+                    year_number=number,
+                )
+                for row in synthetic:
+                    row["course"] = course_label
+                    row["building"] = default_building
+                    row["source"] = "synthetic"
+                course_rows = synthetic
+                synthetic_courses += 1
+                notes.append(f"{course_label}: sintético ({reason})")
+            else:
+                live_courses += 1
+                notes.append(f"{course_label}: {len(course_rows)} sesiones desde la USC")
+
+            rows.extend(course_rows)
 
     if not rows:
         raise RuntimeError("No se pudo obtener ninguna sesión (ni real ni sintética)")
@@ -416,10 +505,13 @@ def sync(
         forms_path,
         catalog_path,
         extra_notes=[synthetic_note, *notes],
+        course_map=course_map,
+        term_info=config.get("term"),
     )
 
     return {
         "mode": mode,
+        "course_years": len(course_map),
         "courses_live": live_courses,
         "courses_synthetic": synthetic_courses,
         "sessions": len(rows),

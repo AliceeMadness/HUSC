@@ -29,7 +29,8 @@ def test_health_and_counts() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["counts"]["class_sessions"] == 386
+    assert payload["counts"]["class_sessions"] >= 1400
+    assert payload["counts"]["degrees"] == 6
     assert payload["schema_version"] == "2.0"
     assert client.get("/health").json()["status"] == "ok"
 
@@ -62,7 +63,7 @@ def test_catalog_export_is_an_attachment() -> None:
 def test_degrees_and_year_view() -> None:
     degrees = client.get("/api/degrees")
     assert degrees.status_code == 200
-    assert len(degrees.json()["degrees"]) == 2
+    assert len(degrees.json()["degrees"]) == 6
     assert degrees.json()["term"]["timezone"] == "Europe/Madrid"
 
     assert degrees.json()["degrees"][0]["years"][0]["subjects"]
@@ -107,7 +108,11 @@ def test_generate_endpoint() -> None:
     payload = response.json()
     assert payload["status"] == "optimal"
     assert payload["stats"]["conflict_count"] == 0
-    assert len(payload["group_ids"]) == 8
+    expected_groups = sum(
+        len({store.group_by_id[group_id].type for group_id in store.subject_by_id[subject_id].group_ids})
+        for subject_id in store.year_by_id["year-matematicas-1"].subject_ids
+    )
+    assert len(payload["group_ids"]) == expected_groups
     assert payload["assignments"]
 
 

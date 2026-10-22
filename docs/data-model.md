@@ -64,9 +64,9 @@ Contexto temporal del catálogo:
 
 ```json
 {
-  "id": "usc-2026-27-semana-tipo",
-  "label": "Curso 2026/27 · semana tipo",
-  "academic_year": "2026/27",
+  "id": "usc-2025-26-week-43",
+  "label": "Curso 2025/26 · semana 43",
+  "academic_year": "2025/26",
   "timezone": "Europe/Madrid",
   "week_start": "mon",
   "day_start": "08:00",
@@ -90,7 +90,7 @@ Así se evita que «Primero» sea ambiguo entre Matemáticas y Mates-Física.
   "degree_id": "deg-matematicas-fisica",
   "number": 1,
   "name": "Primero",
-  "subject_ids": ["sub-matematicas-fisica-1-fisica-general-ii"]
+  "subject_ids": ["sub-matematicas-fisica-1-fisica-general-i"]
 }
 ```
 
@@ -101,12 +101,12 @@ una matrícula con asignaturas de varios años y grados.
 
 ```json
 {
-  "id": "sub-matematicas-1-topologia-de-los-espacios-euclideos",
+  "id": "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
   "year_id": "year-matematicas-1",
-  "name": "Topología de los espacios euclídeos",
-  "slug": "topologia-de-los-espacios-euclideos",
+  "name": "Elementos de probabilidad y estadística",
+  "slug": "elementos-de-probabilidad-y-estadistica",
   "group_ids": [
-    "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle01",
+    "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle01",
     "..."
   ]
 }
@@ -123,12 +123,12 @@ presentación.
 
 ```json
 {
-  "id": "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02",
-  "subject_id": "sub-matematicas-1-topologia-de-los-espacios-euclideos",
+  "id": "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle02",
+  "subject_id": "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
   "code": "CLE02",
   "type": "expositive",
   "type_label": "Expositiva",
-  "session_ids": ["ses-d3f1ad13c3", "..."]
+  "session_ids": ["ses-01230dadfe", "..."]
 }
 ```
 
@@ -163,22 +163,22 @@ La pieza central. Es una reunión semanal recurrente, no una fecha concreta:
 
 ```json
 {
-  "id": "ses-d3f1ad13c3",
-  "subject_id": "sub-matematicas-1-topologia-de-los-espacios-euclideos",
-  "group_id": "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle01",
+  "id": "ses-01230dadfe",
+  "subject_id": "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
+  "group_id": "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle01",
   "type": "expositive",
-  "day": "tue",
-  "start": "11:00",
-  "end": "12:00",
+  "day": "mon",
+  "start": "13:00",
+  "end": "14:00",
   "duration_minutes": 60,
-  "room_id": "room-facultad-de-matematicas-aula-02",
+  "room_id": "room-facultad-de-matematicas-aula-06",
   "building_id": "bld-facultad-de-matematicas",
   "instructors": [],
   "weeks": null,
   "note": null,
   "legacy": {
-    "slot": "M11",
-    "row": 29,
+    "slot": "L13",
+    "row": 9,
     "source": "horario.csv"
   }
 }
@@ -211,7 +211,7 @@ arbitrario de `subject_id`:
 Matrícula de Ana
 ├── Matemáticas 1º: Topología, Cálculo, Álgebra, Derivación
 ├── Matemáticas 2º: Geometría Lineal
-└── Doble Grado 1º: Física General II
+└── Doble Grado 1º: Física general I
 ```
 
 Esto cubre dos casos reales:
@@ -228,9 +228,9 @@ Por eso la API de planificación ya no exige `year_id`:
 ```json
 {
   "subject_ids": [
-    "sub-matematicas-1-topologia-de-los-espacios-euclideos",
-    "sub-matematicas-2-geometria-lineal",
-    "sub-matematicas-fisica-1-fisica-general-ii"
+    "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
+    "sub-matematicas-2-diferenciacion-de-funciones-de-varias-variables-reales",
+    "sub-matematicas-fisica-1-fisica-general-i"
   ],
   "blocked": []
 }
@@ -298,7 +298,7 @@ validación, generación y enlace compartido:
   "custom_events": [
     {"id":"evt-1","title":"Entrenamiento","day":"mon","start":"18:00","end":"20:00","color":"#7c5cbf"}
   ],
-  "pinned_group_ids": ["grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02"]
+  "pinned_group_ids": ["grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle02"]
 }
 ```
 
@@ -355,16 +355,25 @@ en `GET /api/schema/catalog`.
 
 El CSV se conserva intacto; el catálogo es el nuevo contrato.
 
-### Edificio inferido
+### Edificio: legacy y sincronización real
 
-El CSV no contiene edificio. El importador aplica esta heurística, documentada
-en `source.notes`:
+En la importación legacy el CSV no contiene edificio y se aplica una heurística
+por grado (documentada en `source.notes`). En la sincronización real, cada
+`source` de `config.yaml` declara su edificio; los dobles grados pueden tener dos
+fuentes y dos edificios para el mismo curso:
 
-- Grado en Matemáticas → `Facultad de Matemáticas`.
-- Doble Grado en Matemáticas y Física → `Facultad de Física`.
+```yaml
+- number: 1
+  sources:
+    - url: ".../5060/21207-1/25/43..."
+      building: Facultad de Matemáticas
+    - url: ".../5050/21207-1/25/43..."
+      building: Facultad de Física
+```
 
-Es un dato de ejemplo editable. En producción debería venir de la fuente
-oficial o de una tabla de aulas.
+La columna opcional `Edificio` del CSV de sincronización conserva esa
+procedencia por sesión. El catálogo resultante puede tener sesiones del mismo
+curso en edificios distintos.
 
 ## Formato de un horario guardado
 
@@ -381,39 +390,39 @@ Un enlace compartido guarda una instantánea, no referencias mutables:
     {"id":"evt-1","title":"Trabajo","day":"fri","start":"18:00","end":"20:00","color":"#7c5cbf"}
   ],
   "pinned_group_ids": [
-    "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02"
+    "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle02"
   ],
   "subject_ids": [
-    "sub-matematicas-1-topologia-de-los-espacios-euclideos",
-    "sub-matematicas-2-geometria-lineal",
-    "sub-matematicas-fisica-1-fisica-general-ii"
+    "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
+    "sub-matematicas-2-diferenciacion-de-funciones-de-varias-variables-reales",
+    "sub-matematicas-fisica-1-fisica-general-i"
   ],
   "group_ids": [
-    "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02",
-    "grp-matematicas-1-topologia-de-los-espacios-euclideos-clil05",
-    "grp-matematicas-2-geometria-lineal-cle01",
-    "grp-matematicas-fisica-1-fisica-general-ii-cle01"
+    "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle02",
+    "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-clil05",
+    "grp-matematicas-2-diferenciacion-de-funciones-de-varias-variables-reales-cle01",
+    "grp-matematicas-fisica-1-fisica-general-i-cle01"
   ],
   "selections": [
     {
-      "subject_id": "sub-matematicas-1-topologia-de-los-espacios-euclideos",
+      "subject_id": "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
       "type": "expositive",
-      "group_id": "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02"
+      "group_id": "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle02"
     },
     {
-      "subject_id": "sub-matematicas-1-topologia-de-los-espacios-euclideos",
+      "subject_id": "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
       "type": "laboratory",
-      "group_id": "grp-matematicas-1-topologia-de-los-espacios-euclideos-clil05"
+      "group_id": "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-clil05"
     },
     {
-      "subject_id": "sub-matematicas-2-geometria-lineal",
+      "subject_id": "sub-matematicas-2-diferenciacion-de-funciones-de-varias-variables-reales",
       "type": "expositive",
-      "group_id": "grp-matematicas-2-geometria-lineal-cle01"
+      "group_id": "grp-matematicas-2-diferenciacion-de-funciones-de-varias-variables-reales-cle01"
     },
     {
-      "subject_id": "sub-matematicas-fisica-1-fisica-general-ii",
+      "subject_id": "sub-matematicas-fisica-1-fisica-general-i",
       "type": "expositive",
-      "group_id": "grp-matematicas-fisica-1-fisica-general-ii-cle01"
+      "group_id": "grp-matematicas-fisica-1-fisica-general-i-cle01"
     }
   ]
 }

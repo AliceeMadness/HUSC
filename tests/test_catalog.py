@@ -28,14 +28,33 @@ def test_catalogue_file_exists_and_is_json(catalog: Catalog) -> None:
     assert catalog.term.timezone == "Europe/Madrid"
 
 
-def test_expected_legacy_counts(catalog: Catalog) -> None:
-    assert len(catalog.degrees) == 2
-    assert len(catalog.years) == 9
-    assert len(catalog.subjects) == 36
-    assert len(catalog.groups) == 217
-    assert len(catalog.class_sessions) == 386
-    assert len(catalog.rooms) == 21
-    assert len(catalog.buildings) == 2
+def test_expected_catalogue_counts(catalog: Catalog) -> None:
+    # Degree/year structure is stable; the number of meetings can change when
+    # the USC snapshot is refreshed for another week.
+    assert len(catalog.degrees) == 6
+    assert len(catalog.years) == 27
+    assert len(catalog.subjects) >= 150
+    assert len(catalog.groups) >= 900
+    assert len(catalog.class_sessions) >= 1400
+    assert len(catalog.rooms) >= 30
+    assert len(catalog.buildings) == 3
+
+
+def test_new_degrees_are_present(catalog: Catalog) -> None:
+    ids = {degree.id for degree in catalog.degrees}
+    assert {
+        "deg-matematicas",
+        "deg-fisica",
+        "deg-ingenieria-informatica",
+        "deg-inteligencia-artificial",
+        "deg-informatica-matematicas",
+        "deg-matematicas-fisica",
+    } <= ids
+    assert {building.name for building in catalog.buildings} == {
+        "Facultad de Matemáticas",
+        "Facultad de Física",
+        "Escuela Técnica Superior de Ingeniería",
+    }
 
 
 def test_ids_are_url_safe_and_unique(catalog: Catalog) -> None:

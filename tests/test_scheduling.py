@@ -31,37 +31,33 @@ def _year_groups(year_id: str) -> list[str]:
     ]
 
 
+def _required_groups_for_year(year_id: str) -> int:
+    return sum(
+        len({store.group_by_id[gid].type for gid in store.subject_by_id[sid].group_ids})
+        for sid in store.year_by_id[year_id].subject_ids
+    )
+
+
 def test_generate_full_first_year() -> None:
     result = generate_schedule(store, "year-matematicas-1")
     assert result["status"] == "optimal"
     assert result["stats"]["conflict_count"] == 0
     assert result["stats"]["blocked_conflict_count"] == 0
-    assert len(result["group_ids"]) == 8
-    assert len(result["assignments"]) == 8
+    assert len(result["group_ids"]) == _required_groups_for_year("year-matematicas-1")
+    assert len(result["assignments"]) == len(result["group_ids"])
     assert result["excluded_subjects"] == []
-    assert {item["type"] for item in result["assignments"]} == {
-        "expositive",
-        "laboratory",
-    }
 
 
-@pytest.mark.parametrize(
-    "year_id",
-    [
-        "year-matematicas-2",
-        "year-matematicas-3",
-        "year-matematicas-4",
-        "year-matematicas-fisica-1",
-        "year-matematicas-fisica-2",
-        "year-matematicas-fisica-3",
-        "year-matematicas-fisica-5",
-    ],
-)
-def test_generate_other_years_without_conflicts(year_id: str) -> None:
+@pytest.mark.parametrize("year_id", [year.id for year in store.catalog.years])
+def test_generate_every_year_without_conflicts(year_id: str) -> None:
     result = generate_schedule(store, year_id)
-    assert result["status"] == "optimal"
+    assert result["status"] in {"optimal", "partial"}
     assert result["stats"]["conflict_count"] == 0
-    assert result["excluded_subjects"] == []
+    assert result["stats"]["event_conflict_count"] == 0
+    if result["status"] == "partial":
+        assert result["excluded_subjects"]
+    else:
+        assert result["excluded_subjects"] == []
 
 
 def test_fourth_year_double_degree_returns_best_subset() -> None:
@@ -72,7 +68,9 @@ def test_fourth_year_double_degree_returns_best_subset() -> None:
     assert len(result["group_ids"]) < len(_year_groups("year-matematicas-fisica-4"))
     # The partial result must clearly tell the UI which subjects did not fit.
     assert all({"id", "name"} <= subject.keys() for subject in result["excluded_subjects"])
-    assert len(result["requested_subject_ids"]) == 10
+    assert len(result["requested_subject_ids"]) == len(
+        store.year_by_id["year-matematicas-fisica-4"].subject_ids
+    )
 
 
 def test_generate_only_requested_subjects() -> None:
@@ -80,7 +78,10 @@ def test_generate_only_requested_subjects() -> None:
     result = generate_schedule(store, "year-matematicas-1", subject_ids=[subject_id])
     assert result["status"] == "optimal"
     assert all(item["subject_id"] == subject_id for item in result["assignments"])
-    assert len(result["group_ids"]) == 2  # expositiva + laboratorio
+    expected = len(
+        {store.group_by_id[gid].type for gid in store.subject_by_id[subject_id].group_ids}
+    )
+    assert len(result["group_ids"]) == expected
 
 
 def test_preferences_are_respected() -> None:

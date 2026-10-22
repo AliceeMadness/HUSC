@@ -141,6 +141,8 @@ def parse_legacy_slot(slot: str, start: str) -> tuple[str, str | None]:
 
 def room_kind(name: str) -> str:
     lowered = name.lower()
+    if name == "Sin aula":
+        return "other"
     if "informática" in lowered or "informatica" in lowered:
         return "computer_lab"
     if "laboratorio" in lowered:
@@ -158,7 +160,16 @@ def import_files(
     forms_path: Path = FORMS_PATH,
     output_path: Path = OUTPUT_PATH,
     extra_notes: list[str] | None = None,
+    course_map: dict[str, dict] | None = None,
+    term_info: dict | None = None,
 ) -> Catalog:
+    """Build the catalogue from a normalized legacy CSV.
+
+    ``course_map`` is used by the USC sync: it maps a CSV ``Curso`` label to
+    explicit degree/year metadata and lets a double degree have multiple source
+    URLs (and therefore different buildings) for the same year.
+    """
+
     if not csv_path.exists() or not forms_path.exists():
         raise SystemExit(f"Faltan {csv_path} o {forms_path}")
 
@@ -166,6 +177,8 @@ def import_files(
     warnings: list[str] = []
 
     # Ordered maps keep the generated document deterministic and pleasant to read.
+    campuses: "OrderedDict[str, Campus]" = OrderedDict()
+    campuses[CAMPUS["id"]] = Campus(**CAMPUS)
     degrees: "OrderedDict[str, Degree]" = OrderedDict()
     years: "OrderedDict[str, AcademicYear]" = OrderedDict()
     subjects: "OrderedDict[str, Subject]" = OrderedDict()
@@ -201,20 +214,37 @@ def import_files(
             room_name = " ".join((row.get("Aula") or "").split())
             slot = (row.get("Slot") or "").strip()
             hora = (row.get("Hora") or "").strip()
-            if not all([course_label, subject_name, group_code, room_name, slot, hora]):
+            if not all([course_label, subject_name, group_code, slot, hora]):
                 warnings.append(f"fila {row_number}: incompleta, se omite")
                 continue
+            if not room_name:
+                room_name = "Sin aula"
 
-            degree_key, year_number, year_name = parse_course_label(course_label)
-            degree_def = DEGREES[degree_key]
+            meta = course_map.get(course_label) if course_map else None
+            if meta:
+                degree_key = meta["degree_key"]
+                degree_id = meta.get("degree_id", f"deg-{degree_key}")
+                degree_name = meta["degree_name"]
+                short_name = meta["short_name"]
+                year_number = int(meta["year_number"])
+                year_name = meta["year_name"]
+                default_building_name = meta.get("building_name", "Sin edificio")
+                campus_name = meta.get("campus_name", CAMPUS["name"])
+            else:
+                degree_key, year_number, year_name = parse_course_label(course_label)
+                degree_def = DEGREES[degree_key]
+                degree_id = degree_def["id"]
+                degree_name = degree_def["name"]
+                short_name = degree_def["short_name"]
+                default_building_name = degree_def["building_name"]
+                campus_name = CAMPUS["name"]
+
             year_id = f"year-{degree_key}-{year_number}"
-            degree_id = degree_def["id"]
-
             if degree_id not in degrees:
                 degrees[degree_id] = Degree(
                     id=degree_id,
-                    name=degree_def["name"],
-                    short_name=degree_def["short_name"],
+                    name=degree_name,
+                    short_name=short_name,
                 )
             if year_id not in years:
                 years[year_id] = AcademicYear(
@@ -230,12 +260,17 @@ def import_files(
             if slot_warning:
                 warnings.append(f"fila {row_number}: {slot_warning}")
 
-            building_id = degree_def["building_id"]
+            row_building = " ".join((row.get("Edificio") or "").split())
+            building_name = row_building or default_building_name
+            building_id = f"bld-{slugify(building_name)}"
+            campus_id = f"campus-{slugify(campus_name)}"
+            if campus_id not in campuses:
+                campuses[campus_id] = Campus(id=campus_id, name=campus_name)
             if building_id not in buildings:
                 buildings[building_id] = Building(
                     id=building_id,
-                    name=degree_def["building_name"],
-                    campus_id=CAMPUS["id"],
+                    name=building_name,
+                    campus_id=campus_id,
                 )
 
             room_id = f"room-{building_id.removeprefix('bld-')}-{slugify(room_name)}"
@@ -295,7 +330,9 @@ def import_files(
             seen_sessions[key] = session.id
 
     # ---- Cross-check forms_data.json against the CSV -----------------------
-    for year_id, ordered_names in subject_order.items():
+    # The USC sync supplies its own explicit course map and may include degrees
+    # that were never in the old forms snapshot; skip the legacy warnings there.
+    for year_id, ordered_names in ({} if course_map else subject_order).items():
         for name in ordered_names:
             subject_id = f"sub-{year_id.removeprefix('year-')}-{slugify(name)}"
             if subject_id not in subjects:
@@ -390,15 +427,27 @@ def import_files(
                         f"({DAY_LABELS[first.day]})"
                     )
 
-    notes = [
-        "El CSV de origen no incluye edificio ni tipo de sesión: el edificio se infiere "
-        "del grado (Matemáticas -> Facultad de Matemáticas; Mates-Física -> Facultad de "
-        "Física) y el tipo, del prefijo del grupo (CLE, CLIL, CLIS).",
-        "Los datos representan una semana tipo (semana 7 en las URLs de config.yaml). "
-        "No se codifican semanas concretas: weeks queda a null.",
-        "Las horas L09/M09/... se han descompuesto en day (mon..fri) y start/end HH:MM. "
-        "El slot original se conserva en legacy.slot.",
-    ]
+    term_meta = term_info or {}
+    source_week = int(term_meta.get("source_week", 7))
+    notes = []
+    if course_map:
+        notes.append(
+            "Grados, cursos y edificios provienen de config.yaml. Un doble grado puede "
+            "tener varias fuentes por curso; cada sesión conserva el edificio de su fuente."
+        )
+    else:
+        notes.append(
+            "El CSV de origen no incluye edificio ni tipo de sesión: el edificio se infiere "
+            "del grado y el tipo, del prefijo del grupo (CLE, CLIL, CLIS)."
+        )
+    notes.extend(
+        [
+            f"Los datos representan una semana tipo (semana {source_week} en las URLs de "
+            "config.yaml). No se codifican semanas concretas: weeks queda a null.",
+            "Las horas L09/M09/... se han descompuesto en day (mon..fri) y start/end HH:MM. "
+            "El slot original se conserva en legacy.slot.",
+        ]
+    )
     if extra_notes:
         notes.extend(extra_notes)
 
@@ -406,14 +455,14 @@ def import_files(
         schema_version="2.0",
         generated_at=datetime.now(timezone.utc),
         term=Term(
-            id="usc-2026-27-semana-tipo",
-            label="Curso 2026/27 · semana tipo",
-            academic_year="2026/27",
-            timezone="Europe/Madrid",
-            week_start="mon",
-            day_start="08:00",
-            day_end="21:00",
-            weeks=15,
+            id=term_meta.get("id", "usc-2026-27-semana-tipo"),
+            label=term_meta.get("label", "Curso 2026/27 · semana tipo"),
+            academic_year=term_meta.get("academic_year", "2026/27"),
+            timezone=term_meta.get("timezone", "Europe/Madrid"),
+            week_start=term_meta.get("week_start", "mon"),
+            day_start=term_meta.get("day_start", "08:00"),
+            day_end=term_meta.get("day_end", "21:00"),
+            weeks=int(term_meta.get("weeks", 15)),
         ),
         source=SourceInfo(
             legacy_csv=str(csv_path.resolve().relative_to(ROOT)).replace("\\", "/")
@@ -424,10 +473,10 @@ def import_files(
             else str(forms_path.resolve()),
             legacy_config="config.yaml",
             imported_at=datetime.now(timezone.utc),
-            source_week=7,
+            source_week=source_week,
             notes=notes,
         ),
-        campuses=[Campus(**CAMPUS)],
+        campuses=list(campuses.values()),
         buildings=list(buildings.values()),
         rooms=sorted(rooms.values(), key=lambda room: (room.building_id, natural_key(room.name))),
         degrees=list(degrees.values()),

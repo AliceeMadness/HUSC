@@ -1,29 +1,192 @@
-# Lista de cursos y URLs para los horarios
-cursos:
-  - curso: "Primero"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/19627-1/26/7?_wrapper_format=drupal_ajax"
+# Fuentes oficiales del widget de horarios de la USC.
+# Cada grado define sus cursos y cada curso puede tener una o varias fuentes.
+# Los dobles grados usan dos URLs por curso (una por facultad) y cada fuente
+# puede aportar un edificio distinto.
 
-  - curso: "Segundo"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/11930-2/26/7?_wrapper_format=drupal_ajax"
+term:
+  id: usc-2025-26-week-43
+  label: "Curso 2025/26 · semana 43"
+  academic_year: "2025/26"
+  source_week: 43
+  timezone: Europe/Madrid
+  weeks: 15
 
-  - curso: "Tercero"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/11930-3/26/7?_wrapper_format=drupal_ajax"
+degrees:
+  - id: matematicas
+    name: Grado en Matemáticas
+    short_name: Matemáticas
+    building: Facultad de Matemáticas
+    campus: Campus Vida
+    years:
+      - number: 1
+        name: Primero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/19627-1/25/43?_wrapper_format=drupal_ajax"
+      - number: 2
+        name: Segundo
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/19627-2/25/43?_wrapper_format=drupal_ajax"
+      - number: 3
+        name: Tercero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/11930-3/25/43?_wrapper_format=drupal_ajax"
+      - number: 4
+        name: Cuarto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/11930-4/25/43?_wrapper_format=drupal_ajax"
 
-  - curso: "Cuarto"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5060/11930-4/26/7?_wrapper_format=drupal_ajax"
+  - id: fisica
+    name: Grado en Física
+    short_name: Física
+    building: Facultad de Física
+    campus: Campus Vida
+    years:
+      - number: 1
+        name: Primero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/20662-1/25/43?_wrapper_format=drupal_ajax"
+      - number: 2
+        name: Segundo
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/12309-2/25/43?_wrapper_format=drupal_ajax"
+      - number: 3
+        name: Tercero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/12309-3/25/43?_wrapper_format=drupal_ajax"
+      - number: 4
+        name: Cuarto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/12309-4/25/43?_wrapper_format=drupal_ajax"
 
-  - curso: "Primero Mates-Física"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-1/26/7?_wrapper_format=drupal_ajax"
-  - curso: "Segundo Mates-Física"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-2/26/7?_wrapper_format=drupal_ajax"
-  - curso: "Tercero Mates-Física"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-3/26/7?_wrapper_format=drupal_ajax"
-  - curso: "Cuarto Mates-Física"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-4/26/7?_wrapper_format=drupal_ajax"
-  - curso: "Quinto Mates-Física"
-    url: "https://www.usc.gal/es/course/widget/76/course-detail-controller-week-filter/5050/15968-5/26/7?_wrapper_format=drupal_ajax"
+  - id: ingenieria-informatica
+    name: Grado en Ingeniería Informática
+    short_name: Informática
+    building: Escuela Técnica Superior de Ingeniería
+    campus: Campus Vida
+    years:
+      - number: 1
+        name: Primero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/16881-1/25/43?_wrapper_format=drupal_ajax"
+      - number: 2
+        name: Segundo
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/16881-2/25/43?_wrapper_format=drupal_ajax"
+      - number: 3
+        name: Tercero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/16881-3/25/43?_wrapper_format=drupal_ajax"
+      - number: 4
+        name: Cuarto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/16881-4/25/43?_wrapper_format=drupal_ajax"
 
-chrome_data_dir: chrome/selenium
-chromedriver_path: chrome/chromedriver.exe
-timetable_path: output/horario.csv
-forms_data_path: output/forms_data.json
+  - id: inteligencia-artificial
+    name: Grado en Inteligencia Artificial
+    short_name: IA
+    building: Escuela Técnica Superior de Ingeniería
+    campus: Campus Vida
+    years:
+      - number: 1
+        name: Primero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/17977-1/25/43?_wrapper_format=drupal_ajax"
+      - number: 2
+        name: Segundo
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/17977-2/25/43?_wrapper_format=drupal_ajax"
+      - number: 3
+        name: Tercero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/17977-3/25/43?_wrapper_format=drupal_ajax"
+      - number: 4
+        name: Cuarto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/17977-4/25/43?_wrapper_format=drupal_ajax"
+
+  - id: informatica-matematicas
+    name: Doble Grado en Ingeniería Informática y Matemáticas
+    short_name: Informática + Matemáticas
+    building: Facultad de Matemáticas
+    campus: Campus Vida
+    years:
+      - number: 1
+        name: Primero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/19955-1/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/19955-1/25/43?_wrapper_format=drupal_ajax"
+            building: Escuela Técnica Superior de Ingeniería
+      - number: 2
+        name: Segundo
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/19955-2/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/19955-2/25/43?_wrapper_format=drupal_ajax"
+            building: Escuela Técnica Superior de Ingeniería
+      - number: 3
+        name: Tercero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/19955-3/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/19955-3/25/43?_wrapper_format=drupal_ajax"
+            building: Escuela Técnica Superior de Ingeniería
+      - number: 4
+        name: Cuarto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/17573-4/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/17573-4/25/43?_wrapper_format=drupal_ajax"
+            building: Escuela Técnica Superior de Ingeniería
+      - number: 5
+        name: Quinto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/17573-5/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5250/17573-5/25/43?_wrapper_format=drupal_ajax"
+            building: Escuela Técnica Superior de Ingeniería
+      - number: 6
+        name: Sexto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/17573-6/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+
+  - id: matematicas-fisica
+    name: Doble Grado en Matemáticas y Física
+    short_name: Matemáticas + Física
+    building: Facultad de Matemáticas
+    campus: Campus Vida
+    years:
+      - number: 1
+        name: Primero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/21207-1/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/21207-1/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Física
+      - number: 2
+        name: Segundo
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/21207-2/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/21207-2/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Física
+      - number: 3
+        name: Tercero
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/15968-3/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/15968-3/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Física
+      - number: 4
+        name: Cuarto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5060/15968-4/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Matemáticas
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/15968-4/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Física
+      - number: 5
+        name: Quinto
+        sources:
+          - url: "https://www.usc.gal/es/course/widget/77/course-detail-controller-week-filter/5050/15968-5/25/43?_wrapper_format=drupal_ajax"
+            building: Facultad de Física

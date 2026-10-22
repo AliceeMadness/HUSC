@@ -1,10 +1,12 @@
 # Horario · constructor de horarios USC
 
-Aplicación web para montar el horario semanal de los grados de **Matemáticas** y
-**Doble Grado en Matemáticas y Física** de la Universidade de Santiago de
-Compostela. Eliges un grupo de expositiva, laboratorio y seminario por materia y
-la aplicación valida solapes, calcula huecos libres, sugiere dónde mover una
-clase y permite compartir o exportar el resultado.
+Aplicación web para montar el horario semanal de los grados de **Matemáticas**,
+**Física**, **Ingeniería Informática** e **Inteligencia Artificial**, y de los
+dobles grados **Informática + Matemáticas** y **Matemáticas + Física** de la
+Universidade de Santiago de Compostela. Eliges un grupo de expositiva,
+laboratorio y seminario por materia y la aplicación valida solapes, calcula
+huecos libres, sugiere dónde mover una clase y permite compartir o exportar el
+resultado.
 
 > **Estado:** prototipo funcional de hackathon. Los datos incluidos son una
 > *semana tipo* importada de los ficheros `horario.csv` / `forms_data.json` del
@@ -66,8 +68,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
 
-# (opcional) regenerar el catálogo desde los ficheros legacy
-python scripts/import_legacy.py
+# (opcional) refrescar el catálogo desde la USC
+python scripts/sync_usc.py
 
 uvicorn backend.main:app --reload
 ```
@@ -90,7 +92,7 @@ uvicorn backend.main:app --reload
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-69 tests cubren integridad del catálogo, importación, detección de solapes,
+90 tests cubren integridad del catálogo, importación, detección de solapes,
 huecos, generación para los nueve cursos y para matrículas que mezclan
 cursos/grados, bloques consecutivos, extraescolares, fijaciones, preferencias,
 enlaces compartidos, ICS, parser USC, fallback SQLite y los endpoints
@@ -116,8 +118,8 @@ frontend/
   js/api.js        cliente HTTP
 data/
   catalog.json     catálogo canónico versionado
-  usc_sync.db      BBDD SQLite de la última sincronización (generada)
-  usc_sync.csv     CSV normalizado de la última sincronización (generado)
+  usc_sync.db      BBDD SQLite de la última sincronización (live/synthetic)
+  usc_sync.csv     CSV normalizado de la última sincronización
   shared_schedules/
 scripts/
   import_legacy.py importador CSV/JSON -> catálogo
@@ -161,9 +163,9 @@ curl -X POST http://127.0.0.1:8000/api/schedules/generate \
 curl -X POST http://127.0.0.1:8000/api/schedules/generate \
   -H 'Content-Type: application/json' \
   -d '{"subject_ids":[
-    "sub-matematicas-1-topologia-de-los-espacios-euclideos",
-    "sub-matematicas-2-geometria-lineal",
-    "sub-matematicas-fisica-1-fisica-general-ii"
+    "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
+    "sub-matematicas-2-diferenciacion-de-funciones-de-varias-variables-reales",
+    "sub-matematicas-fisica-1-fisica-general-i"
   ]}'
 ```
 
@@ -176,13 +178,17 @@ al widget del calendario, con `_drupal_ajax=1`, `js=true` y el token
 mecánica está reproducida en `backend/usc_source.py`.
 
 ```powershell
-# Intenta la USC para los 9 cursos de config.yaml; si un curso falla,
+# Intenta la USC para los 27 cursos de config.yaml; si un curso falla,
 # rellena ese curso con datos sintéticos. Guarda la foto en SQLite.
 python scripts/sync_usc.py
 
 # Fuerza el fallback inventado (útil sin red o para demos)
 python scripts/sync_usc.py --synthetic
 ```
+
+En la última ejecución respondieron correctamente las **36 URLs** (los dobles
+grados tienen dos fuentes por curso) y se importaron **1.584 sesiones** con 168
+asignaturas y 992 grupos.
 
 La sincronización escribe:
 
@@ -201,7 +207,7 @@ Ejemplo con extraescolar y grupo fijado:
 ```json
 {
   "year_id": "year-matematicas-1",
-  "pinned_group_ids": ["grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02"],
+  "pinned_group_ids": ["grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle02"],
   "custom_events": [
     {"id":"evt-1","title":"Trabajo","day":"fri","start":"18:00","end":"20:00","location":"Oficina"}
   ]
@@ -214,15 +220,15 @@ El detalle está en [`docs/data-model.md`](docs/data-model.md). En resumen:
 
 ```json
 {
-  "id": "ses-d3f1ad13c3",
-  "subject_id": "sub-matematicas-1-topologia-de-los-espacios-euclideos",
-  "group_id": "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle01",
+  "id": "ses-01230dadfe",
+  "subject_id": "sub-matematicas-1-elementos-de-probabilidad-y-estadistica",
+  "group_id": "grp-matematicas-1-elementos-de-probabilidad-y-estadistica-cle01",
   "type": "expositive",
-  "day": "tue",
-  "start": "11:00",
-  "end": "12:00",
+  "day": "mon",
+  "start": "13:00",
+  "end": "14:00",
   "duration_minutes": 60,
-  "room_id": "room-facultad-de-matematicas-aula-02",
+  "room_id": "room-facultad-de-matematicas-aula-06",
   "building_id": "bld-facultad-de-matematicas",
   "instructors": [],
   "weeks": null
@@ -240,24 +246,25 @@ de UI. Las referencias son ids; los nombres viven en su propia entidad. El
   *Facultad de Matemáticas* al Grado de Matemáticas y *Facultad de Física* al
   Doble Grado, y lo documenta en `source.notes`. Es un campo editable en el
   catálogo, no una verdad de la fuente.
-- **Semana tipo.** Las URLs de `config.yaml` apuntan a la semana 7 de 2026/27.
+- **Semana tipo.** Las URLs de `config.yaml` apuntan a la semana 43 de 2025/26.
   El catálogo no inventa semanas lectivas: `weeks` es `null` y el término se
-  etiqueta como «semana tipo». El `.ics` exporta 15 repeticiones desde el
-  próximo lunes.
+  etiqueta como «semana 43». El `.ics` exporta 15 repeticiones desde el próximo
+  lunes.
 - **Optativas.** En 4º de Mates-Física hay materias que comparten franjas. El
   generador devuelve un subconjunto máximo sin solapes y lista las excluidas en
   lugar de producir un horario imposible.
-- **Repeticiones y dobles grados.** El horario ya no se limita a un `year_id`:
-  es una matrícula de asignaturas. El catálogo de origen aún conserva el doble
-  grado como un `degree` separado con las asignaturas de Física del CSV; la UI
-  permite añadir las de Matemáticas. Una versión de producción debería incorporar
-  las plantillas oficiales de cada plan de estudios.
+- **Repeticiones y dobles grados.** El horario no se limita a un `year_id`: es
+  una matrícula de asignaturas. Los dobles grados se construyen con dos fuentes
+  oficiales por curso (Matemáticas + Física, Informática + Matemáticas) y cada
+  sesión conserva el edificio de su facultad. La UI puede además mezclar
+  asignaturas de cursos distintos.
 - **Sin cuentas ni profesores.** El enlace compartido es una instantánea, no un
   documento colaborativo. El modelo ya reserva `instructors` por sesión y
   `kind` por aula para futuras extensiones.
-- **Datos incluidos.** El catálogo por defecto es una foto estable de la semana
-  tipo para que los tests sean reproducibles. `scripts/sync_usc.py` permite
-  refrescarlo desde la USC o generar un fallback sintético en SQLite.
+- **Datos incluidos.** El catálogo es una sincronización real de la semana 43
+  (2025/26) con los 6 grados. `scripts/sync_usc.py` permite refrescarlo desde la
+  USC; si falla, genera un fallback sintético en SQLite. `scripts/import_legacy.py`
+  queda solo para reproducir el snapshot CSV antiguo de Matemáticas/Mates-Física.
 - **Aulas y edificios.** No se ha contrastado cada aula con la fuente oficial;
   el edificio se infiere del grado. La sincronización real mantiene las aulas
   que publica la USC.

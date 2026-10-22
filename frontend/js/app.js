@@ -185,6 +185,20 @@ async function init() {
     }
     showLanding();
   } catch (error) {
+    if (error?.status === 422) {
+      // A catalogue refresh can invalidate subject ids saved in the browser.
+      try {
+        localStorage.removeItem(LS_LAST);
+      } catch {
+        /* ignore */
+      }
+      showLanding();
+      toast("La matrícula guardada ya no existe en el catálogo actual. Elige las materias de nuevo.", {
+        type: "warn",
+        duration: 6000,
+      });
+      return;
+    }
     renderFatal(error);
   }
 }
