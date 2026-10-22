@@ -194,12 +194,20 @@ class SharedSelection(StrictModel):
 
 
 class SharedSchedule(StrictModel):
-    """Serializable snapshot of a student's choice, safe to share by URL."""
+    """Serializable snapshot of a student's choice, safe to share by URL.
+
+    A ``subject_ids`` list defines the student's plan (matrícula).  It may mix
+    subjects from several academic years and even several degrees, which covers
+    repeated courses and double degrees.  ``year_id`` is kept as a convenience
+    for single-year plans and for backwards compatibility with v2.0 links.
+    """
 
     schema_version: str = "2.0"
     id: str
     created_at: datetime
-    year_id: str
+    year_id: str | None = None
+    subject_ids: list[str] = Field(default_factory=list)
+    title: str | None = None
     group_ids: list[str]
     selections: list[SharedSelection]
 

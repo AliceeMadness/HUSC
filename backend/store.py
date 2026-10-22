@@ -122,6 +122,31 @@ class CatalogStore:
             "groups": [self.group_view(group) for group in groups],
         }
 
+    def buildings_view(self) -> list[dict]:
+        return [
+            {
+                **building.model_dump(mode="json"),
+                "campus_name": (
+                    self.campus_by_id[building.campus_id].name
+                    if building.campus_id in self.campus_by_id
+                    else None
+                ),
+            }
+            for building in self.catalog.buildings
+        ]
+
+    def year_summary(self, year: AcademicYear) -> dict:
+        degree = self.degree_by_id[year.degree_id]
+        return {
+            "id": year.id,
+            "degree_id": year.degree_id,
+            "degree_name": degree.name,
+            "degree_short_name": degree.short_name,
+            "number": year.number,
+            "name": year.name,
+            "subject_count": len(year.subject_ids),
+        }
+
     def year_view(self, year_id: str) -> dict:
         year = self.year_by_id.get(year_id)
         if year is None:
@@ -133,17 +158,52 @@ class CatalogStore:
             "degree": degree.model_dump(mode="json"),
             "year": year.model_dump(mode="json"),
             "subjects": subjects,
-            "buildings": [
-                {
-                    **building.model_dump(mode="json"),
-                    "campus_name": (
-                        self.campus_by_id[building.campus_id].name
-                        if building.campus_id in self.campus_by_id
-                        else None
-                    ),
-                }
-                for building in self.catalog.buildings
+            "buildings": self.buildings_view(),
+        }
+
+    def plan_view(self, subject_ids: list[str]) -> dict:
+        """A student's plan: any set of subjects from any year or degree.
+
+        The response is ordered by catalogue order (degree, year, subject), not
+        by the order the client sent the ids, so the UI is deterministic.
+        """
+
+        ordered_ids = list(dict.fromkeys(subject_ids))
+        if not ordered_ids:
+            raise ValueError("La matrícula no puede estar vacía")
+        unknown = [subject_id for subject_id in ordered_ids if subject_id not in self.subject_by_id]
+        if unknown:
+            raise ValueError(f"Asignaturas desconocidas: {', '.join(unknown)}")
+
+        catalogue_order = {subject.id: index for index, subject in enumerate(self.catalog.subjects)}
+        ordered_ids.sort(key=lambda subject_id: catalogue_order[subject_id])
+
+        subjects = []
+        year_ids: list[str] = []
+        degree_ids: list[str] = []
+        for subject_id in ordered_ids:
+            subject = self.subject_by_id[subject_id]
+            year = self.year_by_id[subject.year_id]
+            degree = self.degree_by_id[year.degree_id]
+            view = self.subject_view(subject)
+            view["year"] = self.year_summary(year)
+            view["degree"] = degree.model_dump(mode="json")
+            view["origin_label"] = f"{degree.short_name} · {year.number}º"
+            subjects.append(view)
+            if year.id not in year_ids:
+                year_ids.append(year.id)
+            if degree.id not in degree_ids:
+                degree_ids.append(degree.id)
+
+        return {
+            "term": self.catalog.term.model_dump(mode="json"),
+            "subject_ids": ordered_ids,
+            "subjects": subjects,
+            "years": [self.year_summary(self.year_by_id[year_id]) for year_id in year_ids],
+            "degrees": [
+                self.degree_by_id[degree_id].model_dump(mode="json") for degree_id in degree_ids
             ],
+            "buildings": self.buildings_view(),
         }
 
     def degree_summaries(self) -> list[dict]:
@@ -155,8 +215,21 @@ class CatalogStore:
                     **degree.model_dump(mode="json"),
                     "years": [
                         {
-                            **year.model_dump(mode="json"),
-                            "subject_count": len(year.subject_ids),
+                            **self.year_summary(year),
+                            "subjects": [
+                                {
+                                    "id": subject.id,
+                                    "name": subject.name,
+                                    "slug": subject.slug,
+                                    "group_count": len(subject.group_ids),
+                                    "session_count": sum(
+                                        len(self.sessions_by_group[group_id])
+                                        for group_id in subject.group_ids
+                                    ),
+                                }
+                                for subject_id in year.subject_ids
+                                for subject in [self.subject_by_id[subject_id]]
+                            ],
                             "session_count": sum(
                                 len(self.sessions_by_group[group_id])
                                 for subject_id in year.subject_ids
@@ -174,21 +247,49 @@ class CatalogStore:
 
     # ---- shared schedules -------------------------------------------------
 
-    def save_shared(self, year_id: str, group_ids: list[str]) -> SharedSchedule:
-        year = self.year_by_id.get(year_id)
-        if year is None:
+    def save_shared(
+        self,
+        group_ids: list[str],
+        subject_ids: list[str] | None = None,
+        title: str | None = None,
+        year_id: str | None = None,
+    ) -> SharedSchedule:
+        """Store a snapshot of a plan, possibly spanning several years/degrees.
+
+        ``subject_ids`` defines the plan even if the student has not chosen a
+        group for every subject yet.  When omitted (old clients), it is derived
+        from the chosen groups.
+        """
+
+        if year_id is not None and year_id not in self.year_by_id:
             raise KeyError(year_id)
+
         ordered_ids = list(dict.fromkeys(group_ids))
         unknown = [group_id for group_id in ordered_ids if group_id not in self.group_by_id]
         if unknown:
             raise ValueError(f"Grupos desconocidos: {', '.join(unknown)}")
-        wrong_year = [
-            group_id
-            for group_id in ordered_ids
-            if self.subject_by_id[self.group_by_id[group_id].subject_id].year_id != year_id
+
+        group_subject_ids = list(
+            dict.fromkeys(self.group_by_id[group_id].subject_id for group_id in ordered_ids)
+        )
+        plan_ids = (
+            list(dict.fromkeys(subject_ids)) if subject_ids is not None else group_subject_ids
+        )
+        if not plan_ids:
+            raise ValueError("La matrícula no puede estar vacía")
+        unknown_subjects = [
+            subject_id for subject_id in plan_ids if subject_id not in self.subject_by_id
         ]
-        if wrong_year:
-            raise ValueError(f"Hay grupos de otro curso: {', '.join(wrong_year)}")
+        if unknown_subjects:
+            raise ValueError(f"Asignaturas desconocidas: {', '.join(unknown_subjects)}")
+        outside_plan = [
+            subject_id for subject_id in group_subject_ids if subject_id not in plan_ids
+        ]
+        if outside_plan:
+            raise ValueError(
+                "Hay grupos de asignaturas que no están en la matrícula: "
+                + ", ".join(outside_plan)
+            )
 
         selections = []
         for group_id in ordered_ids:
@@ -205,10 +306,19 @@ class CatalogStore:
         while (SHARED_DIR / f"{share_id}.json").exists():
             share_id = secrets.token_hex(4)
 
+        inferred_years = {
+            self.subject_by_id[subject_id].year_id for subject_id in plan_ids
+        }
+        # ``year_id`` is only a convenience for single-year plans; a mixed
+        # matrícula must not pretend to belong to one year.
+        year_id = next(iter(inferred_years)) if len(inferred_years) == 1 else None
+
         record = SharedSchedule(
             id=share_id,
             created_at=datetime.now(timezone.utc),
             year_id=year_id,
+            subject_ids=plan_ids,
+            title=title,
             group_ids=ordered_ids,
             selections=selections,
         )

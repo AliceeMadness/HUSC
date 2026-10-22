@@ -30,6 +30,8 @@ const state = {
   term: null,
   yearData: null,
   yearId: null,
+  planSubjectIds: [],
+  planDraft: new Set(),
   shareId: null,
   subjects: [],
   groupIndex: new Map(),
@@ -69,6 +71,8 @@ async function init() {
     shareBtn: document.getElementById("share-btn"),
     brandLink: document.getElementById("brand-link"),
     changeYear: document.getElementById("change-year"),
+    customPlan: document.getElementById("custom-plan"),
+    editPlan: document.getElementById("edit-plan"),
     yearTitle: document.getElementById("year-title"),
     yearSubtitle: document.getElementById("year-subtitle"),
     autoBtn: document.getElementById("auto-btn"),
@@ -95,6 +99,12 @@ async function init() {
     shareNote: document.getElementById("share-note"),
     copyShare: document.getElementById("copy-share"),
     exportDialog: document.getElementById("export-dialog"),
+    planDialog: document.getElementById("plan-dialog"),
+    planSearch: document.getElementById("plan-search"),
+    planOptions: document.getElementById("plan-options"),
+    planCount: document.getElementById("plan-count"),
+    planClear: document.getElementById("plan-clear"),
+    planApply: document.getElementById("plan-apply"),
     toast: document.getElementById("toast"),
   };
 
@@ -122,18 +132,32 @@ async function init() {
     }
 
     const saved = readSaved();
+    const requestedPlan = params.get("plan");
     const requestedYear = params.get("year");
-    const knownYear = requestedYear && findYear(requestedYear);
-    if (knownYear) {
-      const sameYear = saved?.yearId === requestedYear;
+    if (requestedPlan) {
+      const ids = requestedPlan.split(",").map((item) => item.trim()).filter(Boolean);
+      if (ids.length) {
+        const samePlan = saved?.subjectIds && sameSubjectSet(saved.subjectIds, ids);
+        await openPlan(ids, {
+          groupIds: samePlan ? saved.groupIds ?? [] : [],
+          autoResult: samePlan ? saved.autoResult ?? null : null,
+          preserveSelection: false,
+        });
+        return;
+      }
+    }
+    if (requestedYear && findYear(requestedYear)) {
+      const fullYearIds = yearSubjectIds(requestedYear) ?? [];
+      const samePlan = saved?.subjectIds && sameSubjectSet(saved.subjectIds, fullYearIds);
       await openYear(requestedYear, {
-        groupIds: sameYear ? saved.groupIds ?? [] : [],
-        autoResult: sameYear ? saved.autoResult ?? null : null,
+        groupIds: samePlan ? saved.groupIds ?? [] : [],
+        autoResult: samePlan ? saved.autoResult ?? null : null,
+        preserveSelection: false,
       });
       return;
     }
-    if (saved?.yearId && findYear(saved.yearId)) {
-      await openYear(saved.yearId, {
+    if (saved?.subjectIds?.length) {
+      await openPlan(saved.subjectIds, {
         groupIds: saved.groupIds ?? [],
         autoResult: saved.autoResult ?? null,
       });
@@ -177,10 +201,28 @@ function findYear(yearId) {
   return null;
 }
 
+function yearSubjectIds(yearId) {
+  const found = findYear(yearId);
+  return found?.year.subjects?.map((subject) => subject.id) ?? null;
+}
+
+function sameSubjectSet(first, second) {
+  return (
+    first.length === second.length && first.every((subjectId) => second.includes(subjectId))
+  );
+}
+
 function readSaved() {
   try {
     const parsed = JSON.parse(localStorage.getItem(LS_LAST) || "null");
-    if (!parsed || typeof parsed.yearId !== "string") return null;
+    if (!parsed) return null;
+    let subjectIds = Array.isArray(parsed.planSubjectIds)
+      ? parsed.planSubjectIds.filter((id) => typeof id === "string")
+      : [];
+    if (!subjectIds.length && typeof parsed.yearId === "string") {
+      subjectIds = yearSubjectIds(parsed.yearId) ?? [];
+    }
+    if (!subjectIds.length) return null;
     const auto =
       parsed.autoResult &&
       ["partial", "relaxed"].includes(parsed.autoResult.status) &&
@@ -189,8 +231,10 @@ function readSaved() {
         ? parsed.autoResult
         : null;
     return {
-      yearId: parsed.yearId,
-      groupIds: Array.isArray(parsed.groupIds) ? parsed.groupIds.filter((id) => typeof id === "string") : [],
+      subjectIds,
+      groupIds: Array.isArray(parsed.groupIds)
+        ? parsed.groupIds.filter((id) => typeof id === "string")
+        : [],
       autoResult: auto,
     };
   } catch {
@@ -199,7 +243,7 @@ function readSaved() {
 }
 
 function saveLast() {
-  if (!state.yearId) return;
+  if (!state.planSubjectIds.length) return;
   try {
     const autoResult = state.autoResult
       ? {
@@ -211,6 +255,7 @@ function saveLast() {
     localStorage.setItem(
       LS_LAST,
       JSON.stringify({
+        planSubjectIds: state.planSubjectIds,
         yearId: state.yearId,
         groupIds: selectedGroupIds(),
         autoResult,
@@ -296,7 +341,7 @@ function bindEvents() {
 
   els.brandLink.addEventListener("click", (event) => {
     event.preventDefault();
-    if (state.yearId) showLanding();
+    if (state.planSubjectIds.length) showLanding();
     else window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
@@ -305,7 +350,7 @@ function bindEvents() {
     if (!button) return;
     button.disabled = true;
     try {
-      await openYear(button.dataset.year, { groupIds: [] });
+      await openYear(button.dataset.year, { groupIds: [], preserveSelection: false });
     } catch (error) {
       toast(error.message, { type: "error" });
       button.disabled = false;
@@ -313,6 +358,40 @@ function bindEvents() {
   });
 
   els.changeYear.addEventListener("click", showLanding);
+  els.customPlan.addEventListener("click", openPlanDialog);
+  els.editPlan.addEventListener("click", openPlanDialog);
+  els.planSearch.addEventListener("input", renderPlanOptions);
+  els.planClear.addEventListener("click", () => {
+    state.planDraft.clear();
+    for (const input of els.planOptions.querySelectorAll("[data-plan-subject]")) {
+      input.checked = false;
+    }
+    updatePlanCount();
+    refreshPlanYearButtons();
+  });
+  els.planOptions.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-plan-subject]");
+    if (!input) return;
+    if (input.checked) state.planDraft.add(input.value);
+    else state.planDraft.delete(input.value);
+    updatePlanCount();
+    refreshPlanYearButtons();
+  });
+  els.planOptions.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-plan-year]");
+    if (!button) return;
+    const yearId = button.dataset.planYear;
+    const ids = yearSubjectsById(yearId).map((subject) => subject.id);
+    const allSelected = ids.length > 0 && ids.every((id) => state.planDraft.has(id));
+    for (const id of ids) {
+      if (allSelected) state.planDraft.delete(id);
+      else state.planDraft.add(id);
+    }
+    const scrollTop = els.planOptions.scrollTop;
+    renderPlanOptions();
+    els.planOptions.scrollTop = scrollTop;
+  });
+  els.planApply.addEventListener("click", applyPlanDraft);
 
   els.autoBtn.addEventListener("click", generateTimetable);
 
@@ -485,14 +564,31 @@ function showLanding() {
 }
 
 /* --------------------------------------------------------------------------
-   Opening a year
+   Opening a plan (matrícula)
    -------------------------------------------------------------------------- */
 
-async function openYear(yearId, { groupIds = [], autoResult = null } = {}) {
-  const data = await api.year(yearId);
+async function openYear(yearId, { groupIds = [], autoResult = null, preserveSelection = false } = {}) {
+  const ids = yearSubjectIds(yearId);
+  if (!ids?.length) {
+    const data = await api.planForYear(yearId);
+    return openPlan(data.subject_ids, { groupIds, autoResult, preserveSelection });
+  }
+  return openPlan(ids, { groupIds, autoResult, preserveSelection });
+}
+
+async function openPlan(
+  subjectIds,
+  { groupIds = [], autoResult = null, preserveSelection = false } = {},
+) {
+  const ids = [...new Set(subjectIds)];
+  if (!ids.length) throw new Error("Selecciona al menos una asignatura");
+  const data = await api.plan(ids);
+  const previous = preserveSelection ? state.selected : {};
+
   state.yearData = data;
   state.term = data.term;
-  state.yearId = yearId;
+  state.planSubjectIds = data.subjects.map((subject) => subject.id);
+  state.yearId = data.years.length === 1 ? data.years[0].id : null;
   state.shareId = null;
   state.autoResult = autoResult;
 
@@ -501,26 +597,213 @@ async function openYear(yearId, { groupIds = [], autoResult = null } = {}) {
   state.validation = null;
   state.validationKey = null;
   clearMove();
+
+  // Keep already-chosen groups whose subject is still in the new plan.
+  for (const [subjectId, types] of Object.entries(previous)) {
+    if (!state.planSubjectIds.includes(subjectId)) continue;
+    for (const [type, groupId] of Object.entries(types)) {
+      const group = state.groupIndex.get(groupId);
+      if (group && group.subject_id === subjectId && group.type === type) {
+        setGroupSelection(groupId);
+      }
+    }
+  }
   for (const groupId of groupIds) setGroupSelection(groupId);
 
-  els.yearTitle.textContent = data.year.name;
-  els.yearSubtitle.textContent = `${data.degree.name} · ${plural(data.subjects.length, "asignatura", "asignaturas")}`;
-  els.yearChip.textContent = `${data.degree.short_name} · ${data.year.number}º`;
+  updatePlanHeader();
   els.yearChip.classList.remove("hidden");
   els.shareBtn.classList.remove("hidden");
   els.themeToggle.classList.remove("hidden");
   els.landing.classList.add("hidden");
   els.workspace.classList.remove("hidden");
   renderPrefs();
-
-  const url = new URL(window.location.href);
-  url.search = `?year=${encodeURIComponent(yearId)}`;
-  window.history.replaceState({}, "", url);
+  updatePlanUrl();
 
   renderEverything();
   saveLast();
   scheduleValidation();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function updatePlanHeader() {
+  const data = state.yearData;
+  if (!data) return;
+  const singleYear = data.years.length === 1 ? data.years[0] : null;
+  if (singleYear) {
+    els.yearTitle.textContent = singleYear.name;
+    els.yearSubtitle.textContent = `${singleYear.degree_name} · ${plural(data.subjects.length, "asignatura", "asignaturas")}`;
+  } else {
+    els.yearTitle.textContent = "Mi matrícula";
+    els.yearSubtitle.textContent = `${plural(data.subjects.length, "materia", "materias")} · ${plural(data.years.length, "curso", "cursos")} · ${plural(data.degrees.length, "grado", "grados")}`;
+  }
+  els.yearChip.textContent = planChipLabel();
+  els.yearChip.title = planLabel();
+}
+
+function distinctDegreeNames(useShortNames) {
+  const names = [
+    ...new Set(
+      (state.yearData?.degrees ?? []).map((degree) =>
+        useShortNames ? degree.short_name : degree.name,
+      ),
+    ),
+  ];
+  // "Matemáticas" is redundant when the plan also contains "Matemáticas + Física".
+  return names.filter(
+    (name, index) => !names.some((other, otherIndex) => otherIndex !== index && other.includes(name)),
+  );
+}
+
+function planChipLabel() {
+  const data = state.yearData;
+  if (!data) return "";
+  if (data.years.length === 1) {
+    const year = data.years[0];
+    return `${year.degree_short_name} · ${year.number}º`;
+  }
+  if (data.degrees.length === 1) {
+    const numbers = data.years.map((year) => `${year.number}º`).join(" + ");
+    return `${data.degrees[0].short_name} · ${numbers}`;
+  }
+  return `${distinctDegreeNames(true).join(" + ")} · ${plural(data.subjects.length, "materia", "materias")}`;
+}
+
+function planLabel() {
+  const data = state.yearData;
+  if (!data) return "Horario";
+  if (data.years.length === 1) {
+    const year = data.years[0];
+    return `${year.degree_name} · ${year.name}`;
+  }
+  return `${distinctDegreeNames(false).join(" + ")} · ${plural(data.subjects.length, "materia", "materias")}`;
+}
+
+function updatePlanUrl() {
+  if (!state.planSubjectIds.length) return;
+  const url = new URL(window.location.href);
+  const years = new Set(state.subjects.map((subject) => subject.year_id));
+  const yearId = years.size === 1 ? [...years][0] : null;
+  const fullYear = yearId ? yearSubjectIds(yearId) : null;
+  const isFullYear =
+    fullYear &&
+    fullYear.length === state.planSubjectIds.length &&
+    fullYear.every((subjectId) => state.planSubjectIds.includes(subjectId));
+  if (isFullYear) {
+    url.search = `?year=${encodeURIComponent(yearId)}`;
+  } else {
+    url.search = `?plan=${state.planSubjectIds.map(encodeURIComponent).join(",")}`;
+  }
+  window.history.replaceState({}, "", url);
+}
+
+/* --------------------------------------------------------------------------
+   Plan / matrícula picker
+   -------------------------------------------------------------------------- */
+
+function normalizeSearch(value) {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function yearSubjectsById(yearId) {
+  for (const degree of state.degrees) {
+    const year = degree.years.find((item) => item.id === yearId);
+    if (year) return year.subjects ?? [];
+  }
+  return [];
+}
+
+function openPlanDialog() {
+  state.planDraft = new Set(state.planSubjectIds);
+  els.planSearch.value = "";
+  renderPlanOptions();
+  els.planDialog.showModal();
+  window.setTimeout(() => els.planSearch.focus(), 60);
+}
+
+function renderPlanOptions() {
+  const query = normalizeSearch(els.planSearch.value);
+  const degreeBlocks = [];
+
+  for (const degree of state.degrees) {
+    const yearBlocks = [];
+    for (const year of degree.years) {
+      const subjects = (year.subjects ?? []).filter((subject) => {
+        if (!query) return true;
+        return normalizeSearch(
+          `${subject.name} ${degree.name} ${degree.short_name} ${year.name} ${year.number}`,
+        ).includes(query);
+      });
+      if (!subjects.length) continue;
+      const allSelected = subjects.every((subject) => state.planDraft.has(subject.id));
+      const rows = subjects
+        .map(
+          (subject) => `
+          <label class="plan-subject" data-plan-year-scope="${escapeHtml(year.id)}">
+            <input type="checkbox" value="${escapeHtml(subject.id)}" data-plan-subject
+              data-plan-year-scope="${escapeHtml(year.id)}"
+              ${state.planDraft.has(subject.id) ? "checked" : ""}>
+            <span>
+              <strong>${escapeHtml(subject.name)}</strong>
+              <small>${plural(subject.group_count ?? 0, "grupo", "grupos")} · ${plural(subject.session_count ?? 0, "sesión", "sesiones")}</small>
+            </span>
+          </label>`,
+        )
+        .join("");
+      yearBlocks.push(`
+        <div class="plan-year">
+          <div class="plan-year-head">
+            <strong>${year.number}º · ${escapeHtml(year.name)}</strong>
+            <small>${plural(subjects.length, "materia", "materias")}</small>
+            <button class="text-btn" type="button" data-plan-year="${escapeHtml(year.id)}">${allSelected ? "Quitar" : "Todo"}</button>
+          </div>
+          <div class="plan-subject-grid">${rows}</div>
+        </div>`);
+    }
+    if (yearBlocks.length) {
+      degreeBlocks.push(`
+        <section class="plan-degree">
+          <h3 class="plan-degree-name">${escapeHtml(degree.name)}</h3>
+          ${yearBlocks.join("")}
+        </section>`);
+    }
+  }
+
+  els.planOptions.innerHTML = degreeBlocks.length
+    ? degreeBlocks.join("")
+    : '<p class="plan-empty">No hay asignaturas que coincidan con la búsqueda.</p>';
+  updatePlanCount();
+  refreshPlanYearButtons();
+}
+
+function updatePlanCount() {
+  els.planCount.textContent = plural(state.planDraft.size, "materia", "materias");
+}
+
+function refreshPlanYearButtons() {
+  for (const button of els.planOptions.querySelectorAll("[data-plan-year]")) {
+    const ids = yearSubjectsById(button.dataset.planYear).map((subject) => subject.id);
+    const allSelected = ids.length > 0 && ids.every((id) => state.planDraft.has(id));
+    button.textContent = allSelected ? "Quitar" : "Todo";
+  }
+}
+
+async function applyPlanDraft() {
+  const ids = [...state.planDraft];
+  if (!ids.length) {
+    toast("Selecciona al menos una materia.", { type: "warn" });
+    return;
+  }
+  els.planDialog.close();
+  try {
+    await openPlan(ids, { preserveSelection: true });
+    toast("Matrícula actualizada.");
+  } catch (error) {
+    toast(`No se pudo actualizar la matrícula: ${error.message}`, { type: "error" });
+  }
 }
 
 function buildIndexes(data) {
@@ -604,9 +887,7 @@ function onSelectionChanged() {
 
   if (state.shareId) {
     state.shareId = null;
-    const url = new URL(window.location.href);
-    url.search = `?year=${encodeURIComponent(state.yearId)}`;
-    window.history.replaceState({}, "", url);
+    updatePlanUrl();
   }
 }
 
@@ -629,6 +910,7 @@ async function refreshValidation() {
   try {
     const result = await api.validate({
       group_ids: ids,
+      subject_ids: state.planSubjectIds,
       blocked: blockedSlots(),
       min_free_minutes: 30,
     });
@@ -781,6 +1063,8 @@ function renderEverything() {
 function renderSubjects() {
   if (!state.subjects.length) return;
   const scrollTop = els.subjects.scrollTop;
+  const showOrigin =
+    (state.yearData?.years?.length ?? 0) > 1 || (state.yearData?.degrees?.length ?? 0) > 1;
   els.subjects.innerHTML = state.subjects
     .map((subject) => {
       const selection = state.selected[subject.id] || {};
@@ -854,6 +1138,7 @@ function renderSubjects() {
             <span class="subject-dot" aria-hidden="true"></span>
             <div class="subject-title">
               <span class="subject-name">${escapeHtml(subject.name)}</span>
+              ${showOrigin ? `<span class="subject-origin">${escapeHtml(subject.origin_label ?? "")}</span>` : ""}
               <span class="subject-hours">${selectedTypes.length ? `${formatHours(weeklyMinutes)} / semana` : `${subject.groups.length} grupos disponibles`}</span>
             </div>
             <span class="subject-check ${selectedTypes.length === types.length ? "is-complete" : ""}">
@@ -1259,14 +1544,14 @@ async function copyMoveProposal() {
    -------------------------------------------------------------------------- */
 
 async function generateTimetable() {
-  if (!state.yearId) return;
+  if (!state.planSubjectIds.length) return;
   els.autoBtn.disabled = true;
   els.autoBtn.querySelector(".spinner").classList.remove("hidden");
   els.autoBtn.querySelector(".btn-label").style.opacity = "0.55";
   els.autoHint.textContent = "Explorando combinaciones…";
   try {
     const result = await api.generate({
-      year_id: state.yearId,
+      subject_ids: state.planSubjectIds,
       blocked: blockedSlots(),
       allow_partial: true,
       allow_conflicts: true,
@@ -1282,9 +1567,7 @@ async function generateTimetable() {
     state.previewCandidate = null;
     els.exitMove.classList.add("hidden");
 
-    const url = new URL(window.location.href);
-    url.search = `?year=${encodeURIComponent(state.yearId)}`;
-    window.history.replaceState({}, "", url);
+    updatePlanUrl();
 
     renderEverything();
     saveLast();
@@ -1324,7 +1607,14 @@ async function loadShared(shareId) {
   try {
     const response = await api.shared(shareId);
     const share = response.share;
-    await openYear(share.year_id, { groupIds: share.group_ids });
+    const subjectIds =
+      share.subject_ids?.length
+        ? share.subject_ids
+        : share.year_id
+          ? yearSubjectIds(share.year_id) ?? []
+          : [...new Set((share.selections || []).map((selection) => selection.subject_id))];
+    if (!subjectIds.length) throw new Error("El enlace no contiene una matrícula válida");
+    await openPlan(subjectIds, { groupIds: share.group_ids });
     state.shareId = share.id;
     state.validation = response.validation;
     state.validationKey = (response.validation.group_ids || []).join(",");
@@ -1347,7 +1637,11 @@ async function shareSchedule() {
   }
   els.shareBtn.disabled = true;
   try {
-    const response = await api.share({ year_id: state.yearId, group_ids: ids });
+    const response = await api.share({
+      subject_ids: state.planSubjectIds,
+      title: planLabel(),
+      group_ids: ids,
+    });
     const url = new URL(window.location.href);
     url.search = `?s=${encodeURIComponent(response.share.id)}`;
     els.shareUrl.value = url.toString();
@@ -1362,12 +1656,19 @@ async function shareSchedule() {
 }
 
 function downloadJson() {
+  const data = state.yearData;
   const payload = {
     schema_version: "2.0",
     exported_at: new Date().toISOString(),
-    term: state.yearData?.term,
-    degree: state.yearData?.degree,
-    year: state.yearData?.year,
+    term: data?.term,
+    plan: {
+      label: planLabel(),
+      subject_ids: state.planSubjectIds,
+      years: data?.years,
+      degrees: data?.degrees,
+    },
+    degree: data?.degrees?.length === 1 ? data.degrees[0] : null,
+    year: data?.years?.length === 1 ? data.years[0] : null,
     group_ids: selectedGroupIds(),
     selections: state.subjects
       .map((subject) => {
@@ -1401,7 +1702,7 @@ function downloadJson() {
   };
   downloadBlob(
     JSON.stringify(payload, null, 2),
-    `horario-${slugify(state.yearData?.degree?.short_name ?? "usc")}-${state.yearData?.year?.number ?? ""}.json`,
+    `horario-${slugify(planChipLabel() || "usc")}.json`,
     "application/json",
   );
   toast("JSON descargado.");
@@ -1412,10 +1713,7 @@ function downloadIcs() {
   if (!ids.length) return;
   const url = new URL("/api/schedules/export.ics", window.location.origin);
   url.searchParams.set("group_ids", ids.join(","));
-  url.searchParams.set(
-    "name",
-    `Horario ${state.yearData?.degree?.short_name ?? "USC"} ${state.yearData?.year?.number ?? ""}º`,
-  );
+  url.searchParams.set("name", `Horario ${planChipLabel() || "USC"}`);
   const anchor = document.createElement("a");
   anchor.href = url.toString();
   anchor.download = "horario.ics";

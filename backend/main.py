@@ -75,6 +75,7 @@ class BlockedSlot(BaseModel):
 
 class ValidateRequest(BaseModel):
     group_ids: list[str] = Field(default_factory=list, max_length=100)
+    subject_ids: list[str] | None = Field(default=None, max_length=100)
     blocked: list[BlockedSlot] = Field(default_factory=list)
     min_free_minutes: int = Field(default=30, ge=0, le=600)
     day_start: str | None = None
@@ -82,13 +83,19 @@ class ValidateRequest(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    year_id: str
-    subject_ids: list[str] | None = Field(default=None, max_length=30)
+    year_id: str | None = None
+    subject_ids: list[str] | None = Field(default=None, max_length=100)
     blocked: list[BlockedSlot] = Field(default_factory=list)
     allow_partial: bool = True
     allow_conflicts: bool = True
     max_solutions: int = Field(default=60, ge=1, le=500)
     node_limit: int = Field(default=200_000, ge=1_000, le=2_000_000)
+
+    @model_validator(mode="after")
+    def _plan_or_year(self) -> "GenerateRequest":
+        if self.year_id is None and not self.subject_ids:
+            raise ValueError("Indica year_id o una lista no vacía de subject_ids")
+        return self
 
 
 class FreeSlotsRequest(BaseModel):
@@ -101,7 +108,9 @@ class FreeSlotsRequest(BaseModel):
 
 
 class ShareRequest(BaseModel):
-    year_id: str
+    year_id: str | None = None
+    subject_ids: list[str] | None = Field(default=None, max_length=100)
+    title: str | None = Field(default=None, max_length=120)
     group_ids: list[str] = Field(min_length=1, max_length=100)
 
 
@@ -183,6 +192,34 @@ def year_detail(year_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Curso no encontrado: {year_id}")
 
 
+@app.get("/api/plan", tags=["catalogue"])
+def plan(
+    year_id: str | None = Query(default=None, description="Atajo para un curso completo"),
+    subject_ids: str = Query(default="", description="ids de asignatura separados por comas"),
+) -> dict:
+    """Return an enriched plan that may mix academic years and degrees."""
+
+    ids = [item.strip() for item in subject_ids.split(",") if item.strip()]
+    if year_id:
+        year = store.year_by_id.get(year_id)
+        if year is None:
+            raise HTTPException(status_code=404, detail=f"Curso no encontrado: {year_id}")
+        # A year shortcut is a full-year plan; explicit subjects win if both are sent.
+        if not ids:
+            ids = list(year.subject_ids)
+        elif not set(ids) <= set(year.subject_ids):
+            raise HTTPException(
+                status_code=422,
+                detail="subject_ids contiene asignaturas de otro curso",
+            )
+    if not ids:
+        raise HTTPException(status_code=422, detail="Indica year_id o subject_ids")
+    try:
+        return store.plan_view(ids)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
 # ---------------------------------------------------------------------------
 # Scheduling
 # ---------------------------------------------------------------------------
@@ -199,6 +236,7 @@ def validate(payload: ValidateRequest) -> dict:
             min_free_minutes=payload.min_free_minutes,
             day_start=day_start,
             day_end=day_end,
+            subject_ids=payload.subject_ids,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -248,12 +286,21 @@ def free_slots(payload: FreeSlotsRequest) -> dict:
 @app.post("/api/schedules/share", tags=["sharing"], status_code=201)
 def share(payload: ShareRequest) -> dict:
     try:
-        record = store.save_shared(payload.year_id, payload.group_ids)
+        record = store.save_shared(
+            payload.group_ids,
+            subject_ids=payload.subject_ids,
+            title=payload.title,
+            year_id=payload.year_id,
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Curso no encontrado: {payload.year_id}")
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    validation = validate_selection(store, record.group_ids)
+    validation = validate_selection(
+        store,
+        record.group_ids,
+        subject_ids=record.subject_ids or None,
+    )
     return {
         "share": record.model_dump(mode="json"),
         "validation": validation,
@@ -269,7 +316,11 @@ def shared(share_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Horario compartido no encontrado")
     return {
         "share": record.model_dump(mode="json"),
-        "validation": validate_selection(store, record.group_ids),
+        "validation": validate_selection(
+            store,
+            record.group_ids,
+            subject_ids=record.subject_ids or None,
+        ),
     }
 
 

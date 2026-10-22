@@ -193,6 +193,21 @@ def test_unknown_group_raises() -> None:
         validate_selection(store, ["grp-does-not-exist"])
 
 
+def test_validate_empty_plan_selection_reports_missing_groups() -> None:
+    subject = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    result = validate_selection(store, [], subject_ids=[subject.id])
+    assert result["stats"]["total_sessions"] == 0
+    assert {item["subject_id"] for item in result["missing"]} == {subject.id}
+    assert len(result["missing"]) == len({group.type for group in store.group_by_id.values() if group.subject_id == subject.id})
+
+
+def test_validate_rejects_groups_outside_the_plan() -> None:
+    first = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    second = store.subject_by_id[store.year_by_id["year-matematicas-2"].subject_ids[0]]
+    with pytest.raises(ValueError, match="no están en la matrícula"):
+        validate_selection(store, [second.group_ids[0]], subject_ids=[first.id])
+
+
 def test_quality_prefers_compact_schedule() -> None:
     group_id = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]].group_ids[0]
     group = store.group_by_id[group_id]
@@ -201,18 +216,80 @@ def test_quality_prefers_compact_schedule() -> None:
 
 def test_shared_schedule_roundtrip() -> None:
     group_ids = _year_groups("year-matematicas-1")[:2]
-    record = store.save_shared("year-matematicas-1", group_ids)
+    subject_ids = [store.group_by_id[group_ids[0]].subject_id]
+    record = store.save_shared(
+        group_ids,
+        subject_ids=subject_ids,
+        year_id="year-matematicas-1",
+        title="Primero de Matemáticas",
+    )
     try:
         loaded = store.load_shared(record.id)
         assert loaded.group_ids == group_ids
         assert loaded.year_id == "year-matematicas-1"
+        assert loaded.subject_ids == subject_ids
+        assert loaded.title == "Primero de Matemáticas"
         assert [selection.group_id for selection in loaded.selections] == group_ids
         assert (SHARED_DIR / f"{record.id}.json").exists()
     finally:
         (SHARED_DIR / f"{record.id}.json").unlink(missing_ok=True)
 
 
-def test_shared_schedule_rejects_other_year_groups() -> None:
-    other = _year_groups("year-matematicas-2")[:1]
-    with pytest.raises(ValueError):
-        store.save_shared("year-matematicas-1", other)
+def test_shared_schedule_supports_a_cross_year_plan() -> None:
+    first = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    second = store.subject_by_id[store.year_by_id["year-matematicas-2"].subject_ids[0]]
+    group_ids = [first.group_ids[0], second.group_ids[0]]
+    record = store.save_shared(
+        group_ids,
+        subject_ids=[first.id, second.id],
+        title="Repetición de 2º + 1º",
+    )
+    try:
+        loaded = store.load_shared(record.id)
+        assert set(loaded.subject_ids) == {first.id, second.id}
+        assert loaded.year_id is None  # mixed years are not forced into one year
+        assert loaded.title == "Repetición de 2º + 1º"
+    finally:
+        (SHARED_DIR / f"{record.id}.json").unlink(missing_ok=True)
+
+
+def test_plan_view_can_mix_years_and_degrees() -> None:
+    math = store.year_by_id["year-matematicas-1"].subject_ids[0]
+    physics = store.year_by_id["year-matematicas-fisica-1"].subject_ids[0]
+    plan = store.plan_view([math, physics])
+    assert {subject["id"] for subject in plan["subjects"]} == {math, physics}
+    assert len(plan["years"]) == 2
+    assert len(plan["degrees"]) == 2
+    assert all("origin_label" in subject for subject in plan["subjects"])
+
+
+def test_generate_cross_year_plan() -> None:
+    math = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    physics = store.subject_by_id[
+        store.year_by_id["year-matematicas-fisica-1"].subject_ids[0]
+    ]
+    result = generate_schedule(store, subject_ids=[math.id, physics.id])
+    assert result["status"] == "optimal"
+    assert result["stats"]["conflict_count"] == 0
+    assert {assignment["subject_id"] for assignment in result["assignments"]} == {
+        math.id,
+        physics.id,
+    }
+    assert {year["id"] for year in result["years"]} == {
+        "year-matematicas-1",
+        "year-matematicas-fisica-1",
+    }
+
+
+def test_plan_context_wins_over_year_inference_for_missing_groups() -> None:
+    first = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    second = store.subject_by_id[store.year_by_id["year-matematicas-2"].subject_ids[0]]
+    group_ids = [first.group_ids[0], first.group_ids[1]]
+    result = validate_selection(store, group_ids, subject_ids=[first.id, second.id])
+    assert all(item["subject_id"] in {first.id, second.id} for item in result["missing"])
+    assert any(item["subject_id"] == second.id for item in result["missing"])
+    # The plan does not accidentally require every subject of year 1.
+    assert not any(
+        item["subject_id"] == store.year_by_id["year-matematicas-1"].subject_ids[1]
+        for item in result["missing"]
+    )

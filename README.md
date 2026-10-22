@@ -12,12 +12,15 @@ clase y permite compartir o exportar el resultado.
 
 ![Vista de escritorio en tema claro](docs/workspace-light.png)
 
-[Pantalla de inicio](docs/landing-light.png) · [Vista en tema oscuro](docs/workspace-dark.png)
+[Pantalla de inicio](docs/landing-light.png) · [Matrícula mixta](docs/workspace-mixed.png) · [Selector de matrícula](docs/plan-dialog.png) · [Tema oscuro](docs/workspace-dark.png)
 
 ## Funcionalidad
 
 - **Catálogo serializable y versionado** en `data/catalog.json`: grados, cursos,
   asignaturas, grupos, aulas, edificios y sesiones con ids estables.
+- **Matrícula personalizada**: mezcla asignaturas de varios cursos y grados. Sirve
+  para repetidores (1º + 2º) y para dobles grados (Matemáticas + Física), incluso
+  con cursos distintos en cada título.
 - **Selector de grupos** de expositiva, laboratorio y seminario con aviso
   instantáneo de solapes y de coincidencia con tus preferencias.
 - **Calendario semanal** con bloques coloreados por materia, conflictos marcados
@@ -76,9 +79,10 @@ uvicorn backend.main:app --reload
 ```
 
 Cubren integridad del catálogo, importación, detección de solapes, huecos,
-generación para los nueve cursos, preferencias, enlaces compartidos, ICS y los
-endpoints principales. La interfaz obtiene 100/100 en accesibilidad, buenas
-prácticas y SEO con Lighthouse, tanto en tema claro como oscuro.
+generación para los nueve cursos y para matrículas que mezclan cursos/grados,
+preferencias, enlaces compartidos, ICS y los endpoints principales. La interfaz
+obtiene 100/100 en accesibilidad, buenas prácticas y SEO con Lighthouse, tanto en
+tema claro como oscuro.
 
 ## Estructura
 
@@ -116,8 +120,9 @@ tests/
 | `GET` | `/api/catalog` | catálogo completo serializado |
 | `GET` | `/api/catalog/export` | descargar el JSON canónico |
 | `GET` | `/api/schema/catalog` | JSON Schema del catálogo |
-| `GET` | `/api/degrees` | grados, cursos y metadatos |
+| `GET` | `/api/degrees` | grados, cursos, asignaturas y metadatos |
 | `GET` | `/api/years/{year_id}` | vista enriquecida de un curso (grupos + sesiones + aulas) |
+| `GET` | `/api/plan` | matrícula enriquecida por `year_id` o `subject_ids` |
 | `POST` | `/api/schedules/validate` | solapes, grupos que faltan, huecos y estadísticas |
 | `POST` | `/api/schedules/generate` | generar una combinación de grupos |
 | `POST` | `/api/free-slots` | complemento libre de un conjunto de grupos |
@@ -128,9 +133,19 @@ tests/
 Ejemplo de generación:
 
 ```bash
+# Curso completo
 curl -X POST http://127.0.0.1:8000/api/schedules/generate \
   -H 'Content-Type: application/json' \
   -d '{"year_id":"year-matematicas-1","blocked":[{"day":"fri","start":"08:00","end":"21:00"}]}'
+
+# Matrícula mixta: 1º de Matemáticas + 2º de Matemáticas + 1º de Mates-Física
+curl -X POST http://127.0.0.1:8000/api/schedules/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"subject_ids":[
+    "sub-matematicas-1-topologia-de-los-espacios-euclideos",
+    "sub-matematicas-2-geometria-lineal",
+    "sub-matematicas-fisica-1-fisica-general-ii"
+  ]}'
 ```
 
 ## Modelo de datos
@@ -172,6 +187,11 @@ de UI. Las referencias son ids; los nombres viven en su propia entidad. El
 - **Optativas.** En 4º de Mates-Física hay materias que comparten franjas. El
   generador devuelve un subconjunto máximo sin solapes y lista las excluidas en
   lugar de producir un horario imposible.
+- **Repeticiones y dobles grados.** El horario ya no se limita a un `year_id`:
+  es una matrícula de asignaturas. El catálogo de origen aún conserva el doble
+  grado como un `degree` separado con las asignaturas de Física del CSV; la UI
+  permite añadir las de Matemáticas. Una versión de producción debería incorporar
+  las plantillas oficiales de cada plan de estudios.
 - **Sin cuentas ni profesores.** El enlace compartido es una instantánea, no un
   documento colaborativo. El modelo ya reserva `instructors` por sesión y
   `kind` por aula para futuras extensiones.
@@ -182,7 +202,8 @@ de UI. Las referencias son ids; los nombres viven en su propia entidad. El
 ## Próximos pasos
 
 1. Importador directo desde la web de la USC (en lugar del CSV).
-2. Persistencia en SQLite/Postgres y cuentas de estudiante.
-3. Profesores y solicitudes de cambio de clase con aprobación.
-4. Huecos comunes entre varios estudiantes de un mismo grupo.
-5. Suscripción `.ics` actualizable y avisos de cambios.
+2. Plantillas oficiales de plan de estudios para cada grado y doble grado.
+3. Persistencia en SQLite/Postgres y cuentas de estudiante.
+4. Profesores y solicitudes de cambio de clase con aprobación.
+5. Huecos comunes entre varios estudiantes de un mismo grupo.
+6. Suscripción `.ics` actualizable y avisos de cambios.

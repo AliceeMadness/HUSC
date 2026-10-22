@@ -33,6 +33,9 @@ export const api = {
   health: () => request("/api/health"),
   degrees: () => request("/api/degrees"),
   year: (yearId) => request(`/api/years/${encodeURIComponent(yearId)}`),
+  plan: (subjectIds) =>
+    request(`/api/plan?subject_ids=${subjectIds.map(encodeURIComponent).join(",")}`),
+  planForYear: (yearId) => request(`/api/plan?year_id=${encodeURIComponent(yearId)}`),
   validate: (payload) => request("/api/schedules/validate", { method: "POST", body: payload }),
   generate: (payload) => request("/api/schedules/generate", { method: "POST", body: payload }),
   freeSlots: (payload) => request("/api/free-slots", { method: "POST", body: payload }),

@@ -35,9 +35,12 @@ erDiagram
     GROUP ||--o{ CLASS_SESSION : programa
     ROOM ||--o{ CLASS_SESSION : acoge
     SUBJECT ||--o{ CLASS_SESSION : imparte
+    PLAN }o--o{ SUBJECT : "matrícula del estudiante"
 ```
 
-Todas las relaciones son **por id**. No hay objetos anidados duplicados ni
+`PLAN` no es una entidad del catálogo: es la matrícula concreta del estudiante,
+un conjunto de `subject_id` que la API compone en tiempo real. Todas las
+relaciones persistidas son **por id**. No hay objetos anidados duplicados ni
 referencias por índice de array. El catálogo es plano:
 
 ```text
@@ -91,7 +94,8 @@ Así se evita que «Primero» sea ambiguo entre Matemáticas y Mates-Física.
 }
 ```
 
-En la UI, el usuario elige un `year_id`, no una etiqueta textual.
+En la UI, el usuario puede partir de un `year_id` (curso completo) o construir
+una matrícula con asignaturas de varios años y grados.
 
 ### `subject`
 
@@ -197,6 +201,60 @@ Decisiones clave:
   En esta importación es `null` (semana tipo).
 - **`legacy`** conserva la fila y el slot originales para auditar la migración.
 
+## Matrícula: asignaturas de varios cursos y grados
+
+El catálogo organiza las asignaturas por grado y curso para poder mostrar la
+oferta, pero **la matrícula de un estudiante no es un curso**. Es un conjunto
+arbitrario de `subject_id`:
+
+```text
+Matrícula de Ana
+├── Matemáticas 1º: Topología, Cálculo, Álgebra, Derivación
+├── Matemáticas 2º: Geometría Lineal
+└── Doble Grado 1º: Física General II
+```
+
+Esto cubre dos casos reales:
+
+- **Repetir curso.** Alguien de 2º que arrastra una asignatura de 1º no encaja
+  en un único `year_id`. Su matrícula incluye asignaturas de ambos cursos.
+- **Doble grado.** Un doble grado se compone de asignaturas de dos títulos (y a
+  veces de cursos distintos). En el modelo, el grado es solo la procedencia de
+  la asignatura; la matrícula puede mezclar `deg-matematicas` y
+  `deg-matematicas-fisica` (o cualquier combinación futura).
+
+Por eso la API de planificación ya no exige `year_id`:
+
+```json
+{
+  "subject_ids": [
+    "sub-matematicas-1-topologia-de-los-espacios-euclideos",
+    "sub-matematicas-2-geometria-lineal",
+    "sub-matematicas-fisica-1-fisica-general-ii"
+  ],
+  "blocked": []
+}
+```
+
+- `GET /api/plan?year_id=...` sigue siendo un atajo para una matrícula completa
+  de un curso.
+- `GET /api/plan?subject_ids=a,b,c` devuelve la vista enriquecida de cualquier
+  combinación.
+- `POST /api/schedules/validate` y `/generate` aceptan `subject_ids`.
+- La validación informa de grupos que faltan **solo para las asignaturas de la
+  matrícula**, no para todo el curso. Es la diferencia entre «me faltan grupos de
+  mi matrícula» y «me faltan todas las optativas del grado».
+- Los enlaces compartidos guardan `subject_ids`, por lo que una matrícula mixta
+  sigue siendo reproducible.
+
+En los datos de ejemplo, el «Doble Grado en Matemáticas y Física» aparece como
+un `degree` separado porque así venía en la fuente, y solo incluye las
+asignaturas de Física que había en el CSV. La UI permite completarlo con
+asignaturas de `deg-matematicas`. Para una versión de producción, el siguiente
+paso sería añadir **plantillas de plan de estudios** (`programs`/`curricula`)
+que definan oficialmente qué asignaturas componen cada doble grado y en qué
+curso; la matrícula seguiría siendo la selección concreta del estudiante.
+
 ## Convenciones de ids
 
 | Entidad | Patrón | Ejemplo |
@@ -270,10 +328,18 @@ Un enlace compartido guarda una instantánea, no referencias mutables:
   "schema_version": "2.0",
   "id": "ef95142e",
   "created_at": "2026-10-22T13:55:00+00:00",
-  "year_id": "year-matematicas-1",
+  "title": "Matemáticas + Física · 3 materias",
+  "year_id": null,
+  "subject_ids": [
+    "sub-matematicas-1-topologia-de-los-espacios-euclideos",
+    "sub-matematicas-2-geometria-lineal",
+    "sub-matematicas-fisica-1-fisica-general-ii"
+  ],
   "group_ids": [
     "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02",
-    "grp-matematicas-1-topologia-de-los-espacios-euclideos-clil05"
+    "grp-matematicas-1-topologia-de-los-espacios-euclideos-clil05",
+    "grp-matematicas-2-geometria-lineal-cle01",
+    "grp-matematicas-fisica-1-fisica-general-ii-cle01"
   ],
   "selections": [
     {
@@ -285,10 +351,24 @@ Un enlace compartido guarda una instantánea, no referencias mutables:
       "subject_id": "sub-matematicas-1-topologia-de-los-espacios-euclideos",
       "type": "laboratory",
       "group_id": "grp-matematicas-1-topologia-de-los-espacios-euclideos-clil05"
+    },
+    {
+      "subject_id": "sub-matematicas-2-geometria-lineal",
+      "type": "expositive",
+      "group_id": "grp-matematicas-2-geometria-lineal-cle01"
+    },
+    {
+      "subject_id": "sub-matematicas-fisica-1-fisica-general-ii",
+      "type": "expositive",
+      "group_id": "grp-matematicas-fisica-1-fisica-general-ii-cle01"
     }
   ]
 }
 ```
+
+La lista `subject_ids` es la matrícula completa, aunque alguna asignatura
+todavía no tenga grupo elegido. `year_id` se conserva solo cuando toda la
+matrícula pertenece a un curso; en una matrícula mixta es `null`.
 
 La respuesta de validación incluye las sesiones expandidas, los solapes, los
 grupos que faltan, los conflictos con franjas bloqueadas, los huecos y las

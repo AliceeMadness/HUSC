@@ -222,21 +222,37 @@ def _enriched_sessions(
     return views, conflicts, conflict_map
 
 
-def _missing_requirements(store: CatalogStore, groups: list[Group]) -> list[dict]:
-    if not groups:
-        return []
-    selected_subject_ids = list(dict.fromkeys(group.subject_id for group in groups))
-    years = {store.subject_by_id[subject_id].year_id for subject_id in selected_subject_ids}
-    # When the selection belongs to a single year, report every subject of that
-    # year (including completely omitted subjects).  This is what a student
-    # means by "me faltan grupos".
-    if len(years) == 1:
-        year_id = next(iter(years))
-        subject_ids = list(store.year_by_id[year_id].subject_ids)
+def _missing_requirements(
+    store: CatalogStore,
+    groups: list[Group],
+    subject_ids: list[str] | None = None,
+) -> list[dict]:
+    if subject_ids is not None:
+        # An explicit plan (matrícula) is the source of truth, even when the
+        # student has not selected a group yet.  This is what makes repeated
+        # courses and double degrees work.
+        check_ids = list(dict.fromkeys(subject_ids))
+        unknown = [
+            subject_id for subject_id in check_ids if subject_id not in store.subject_by_id
+        ]
+        if unknown:
+            raise ValueError(f"Asignaturas desconocidas: {', '.join(unknown)}")
     else:
-        subject_ids = selected_subject_ids
+        if not groups:
+            return []
+        selected_subject_ids = list(dict.fromkeys(group.subject_id for group in groups))
+        years = {
+            store.subject_by_id[subject_id].year_id for subject_id in selected_subject_ids
+        }
+        # Backwards-compatible inference: a single-year selection means "all
+        # subjects of that year"; a mixed selection only checks what was chosen.
+        if len(years) == 1:
+            year_id = next(iter(years))
+            check_ids = list(store.year_by_id[year_id].subject_ids)
+        else:
+            check_ids = selected_subject_ids
     missing = []
-    for subject_id in subject_ids:
+    for subject_id in check_ids:
         subject = store.subject_by_id[subject_id]
         all_groups = [store.group_by_id[group_id] for group_id in subject.group_ids]
         expected_types = {group.type for group in all_groups}
@@ -326,9 +342,18 @@ def validate_selection(
     min_free_minutes: int = 30,
     day_start: str = "08:00",
     day_end: str = "21:00",
+    subject_ids: list[str] | None = None,
 ) -> dict:
     groups = resolve_groups(store, group_ids)
     blocked_norm = normalize_blocked(blocked)
+    if subject_ids is not None:
+        plan_set = set(subject_ids)
+        outside_plan = [group.id for group in groups if group.subject_id not in plan_set]
+        if outside_plan:
+            raise ValueError(
+                "Hay grupos de asignaturas que no están en la matrícula: "
+                + ", ".join(outside_plan)
+            )
     sessions = sessions_for_groups(store, groups)
     views, conflicts, _ = _enriched_sessions(store, sessions)
     blocked_conflicts = _blocked_conflicts(views, blocked_norm)
@@ -342,8 +367,9 @@ def validate_selection(
     return {
         "ok": len(conflicts) == 0 and len(blocked_conflicts) == 0,
         "group_ids": [group.id for group in groups],
+        "subject_ids": list(dict.fromkeys(subject_ids)) if subject_ids is not None else None,
         "selections": _selection_view(store, groups),
-        "missing": _missing_requirements(store, groups),
+        "missing": _missing_requirements(store, groups, subject_ids=subject_ids),
         "sessions": views,
         "conflicts": conflicts,
         "blocked_conflicts": blocked_conflicts,
@@ -416,25 +442,15 @@ def _quality(store: CatalogStore, groups: list[Group], blocked: list[dict]) -> t
     )
 
 
-def _build_variables(
-    store: CatalogStore,
-    year_id: str,
-    subject_ids: list[str] | None = None,
-) -> tuple[list[Variable], dict[str, object]]:
-    year = store.year_by_id.get(year_id)
-    if year is None:
-        raise KeyError(year_id)
-    requested = year.subject_ids if subject_ids is None else list(dict.fromkeys(subject_ids))
+def _build_variables(store: CatalogStore, subject_ids: list[str]) -> list[Variable]:
+    """One variable per (subject, group type), for any mix of years/degrees."""
+
+    requested = list(dict.fromkeys(subject_ids))
+    if not requested:
+        raise ValueError("La matrícula no puede estar vacía")
     unknown = [subject_id for subject_id in requested if subject_id not in store.subject_by_id]
     if unknown:
         raise ValueError(f"Asignaturas desconocidas: {', '.join(unknown)}")
-    wrong_year = [
-        subject_id
-        for subject_id in requested
-        if store.subject_by_id[subject_id].year_id != year_id
-    ]
-    if wrong_year:
-        raise ValueError(f"Asignaturas de otro curso: {', '.join(wrong_year)}")
 
     variables: list[Variable] = []
     for subject_id in requested:
@@ -446,7 +462,14 @@ def _build_variables(
         for group_type in sorted(by_type, key=lambda item: GROUP_TYPE_ORDER[item]):
             candidates = sorted(by_type[group_type], key=lambda group: natural_key(group.code))
             variables.append(Variable(subject_id, group_type, candidates))
-    return variables, year.model_dump(mode="json")
+    return variables
+
+
+def _plan_years(store: CatalogStore, subject_ids: list[str]) -> list[dict]:
+    year_ids = list(
+        dict.fromkeys(store.subject_by_id[subject_id].year_id for subject_id in subject_ids)
+    )
+    return [store.year_summary(store.year_by_id[year_id]) for year_id in year_ids]
 
 
 def _strict_solution(
@@ -613,23 +636,24 @@ def _subject_flexibility(store: CatalogStore, subject_id: str, original_index: i
 
 def _greedy_subset(
     store: CatalogStore,
-    year_id: str,
+    subject_ids: list[str],
     order: list[str],
     blocked: list[dict],
     node_limit: int,
 ) -> tuple[list[str], list[Group], dict]:
     """Add subjects one by one, keeping only those that still fit.
 
-    Fourth-year degrees contain electives that share time slots.  Rather than
-    returning a schedule full of overlaps, we return the largest subset we can
-    fit conflict-free and tell the UI which subjects were left out.
+    Fourth-year degrees contain electives that share time slots, and custom
+    plans can mix very different years.  Rather than returning a schedule full
+    of overlaps, we return the largest subset we can fit conflict-free and tell
+    the UI which subjects were left out.
     """
 
     included: list[str] = []
     current: list[Group] = []
     for subject_id in order:
         trial = included + [subject_id]
-        variables, _ = _build_variables(store, year_id, trial)
+        variables = _build_variables(store, trial)
         groups, meta = _strict_solution(
             store,
             variables,
@@ -644,16 +668,15 @@ def _greedy_subset(
     if not included:
         return [], [], {"subset_attempts": len(order)}
 
-    year = store.year_by_id[year_id]
-    ordered_included = [subject_id for subject_id in year.subject_ids if subject_id in included]
-    variables, _ = _build_variables(store, year_id, ordered_included)
+    ordered_included = [subject_id for subject_id in subject_ids if subject_id in included]
+    variables = _build_variables(store, ordered_included)
     groups, meta = _strict_solution(store, variables, blocked, max_solutions=60, node_limit=node_limit)
     return ordered_included, groups or current, {"subset_attempts": len(order), **meta}
 
 
 def generate_schedule(
     store: CatalogStore,
-    year_id: str,
+    year_id: str | None = None,
     blocked: list[dict] | None = None,
     subject_ids: list[str] | None = None,
     allow_partial: bool = True,
@@ -661,12 +684,34 @@ def generate_schedule(
     max_solutions: int = 60,
     node_limit: int = 200_000,
 ) -> dict:
+    """Generate a timetable for a year (legacy) or an arbitrary plan.
+
+    ``subject_ids`` is the new contract: it may mix subjects from several
+    academic years and degrees.  ``year_id`` remains as a convenience for
+    single-year plans and old API clients.
+    """
+
     blocked_norm = normalize_blocked(blocked)
-    year = store.year_by_id.get(year_id)
-    if year is None:
-        raise KeyError(year_id)
-    requested = list(dict.fromkeys(subject_ids if subject_ids is not None else year.subject_ids))
-    variables, year_data = _build_variables(store, year_id, requested)
+    year_data: dict | None = None
+
+    if subject_ids is None:
+        if year_id is None:
+            raise ValueError("Indica year_id o subject_ids")
+        year = store.year_by_id.get(year_id)
+        if year is None:
+            raise KeyError(year_id)
+        requested = list(year.subject_ids)
+        year_data = year.model_dump(mode="json")
+    else:
+        requested = list(dict.fromkeys(subject_ids))
+        if year_id is not None:
+            year = store.year_by_id.get(year_id)
+            if year is None:
+                raise KeyError(year_id)
+            if set(requested) <= set(year.subject_ids):
+                year_data = year.model_dump(mode="json")
+
+    variables = _build_variables(store, requested)
     best, meta = _strict_solution(store, variables, blocked_norm, max_solutions, node_limit)
 
     included = requested
@@ -678,12 +723,12 @@ def generate_schedule(
     else:
         subset_result = None
         if allow_partial and len(requested) > 1:
-            year_order = {subject_id: index for index, subject_id in enumerate(year.subject_ids)}
+            plan_order = {subject_id: index for index, subject_id in enumerate(requested)}
             orders = [
                 sorted(
                     requested,
                     key=lambda subject_id: _subject_flexibility(
-                        store, subject_id, year_order.get(subject_id, 0)
+                        store, subject_id, plan_order.get(subject_id, 0)
                     ),
                 ),
                 requested,
@@ -691,7 +736,7 @@ def generate_schedule(
             ]
             candidates = []
             for order in orders:
-                candidate = _greedy_subset(store, year_id, order, blocked_norm, node_limit)
+                candidate = _greedy_subset(store, requested, order, blocked_norm, node_limit)
                 if candidate[0]:
                     candidates.append(candidate)
             if candidates:
@@ -715,7 +760,7 @@ def generate_schedule(
             status = "partial"
             solver = {"status": status, **meta, "subset": subset_meta}
             # Re-run validate with the subset; variables must match the subset too.
-            variables, _ = _build_variables(store, year_id, included)
+            variables = _build_variables(store, included)
         elif allow_conflicts:
             groups, relaxed_meta = _relaxed_solution(store, variables, blocked_norm)
             status = "relaxed"
@@ -731,19 +776,40 @@ def generate_schedule(
         blocked=blocked_norm,
         day_start=store.catalog.term.day_start,
         day_end=store.catalog.term.day_end,
+        subject_ids=included,
     )
     result["status"] = status
     result["solver"] = solver
     result["year"] = year_data
+    result["years"] = _plan_years(store, included)
+    degree_ids = list(dict.fromkeys(year["degree_id"] for year in result["years"]))
+    result["degrees"] = [
+        store.degree_by_id[degree_id].model_dump(mode="json") for degree_id in degree_ids
+    ]
     result["requested_subject_ids"] = requested
     result["excluded_subjects"] = [
-        {"id": subject_id, "name": store.subject_by_id[subject_id].name}
+        {
+            "id": subject_id,
+            "name": store.subject_by_id[subject_id].name,
+            "year_id": store.subject_by_id[subject_id].year_id,
+            "year_name": store.year_by_id[store.subject_by_id[subject_id].year_id].name,
+            "degree_short_name": store.degree_by_id[
+                store.year_by_id[store.subject_by_id[subject_id].year_id].degree_id
+            ].short_name,
+        }
         for subject_id in excluded
     ]
     result["assignments"] = [
         {
             "subject_id": variable.subject_id,
             "subject_name": store.subject_by_id[variable.subject_id].name,
+            "year_id": store.subject_by_id[variable.subject_id].year_id,
+            "year_name": store.year_by_id[
+                store.subject_by_id[variable.subject_id].year_id
+            ].name,
+            "degree_short_name": store.degree_by_id[
+                store.year_by_id[store.subject_by_id[variable.subject_id].year_id].degree_id
+            ].short_name,
             "type": variable.type.value,
             "type_label": GROUP_TYPE_LABELS[variable.type],
             "group_id": groups[index].id,

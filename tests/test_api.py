@@ -58,15 +58,40 @@ def test_degrees_and_year_view() -> None:
     assert len(degrees.json()["degrees"]) == 2
     assert degrees.json()["term"]["timezone"] == "Europe/Madrid"
 
+    assert degrees.json()["degrees"][0]["years"][0]["subjects"]
+
     year = client.get("/api/years/year-matematicas-1")
     assert year.status_code == 200
     assert len(year.json()["subjects"]) == 4
     assert year.json()["subjects"][0]["groups"][0]["sessions"]
 
 
+def test_plan_can_mix_years_and_degrees() -> None:
+    math = store.year_by_id["year-matematicas-1"].subject_ids[0]
+    physics = store.year_by_id["year-matematicas-fisica-1"].subject_ids[0]
+
+    by_year = client.get("/api/plan", params={"year_id": "year-matematicas-1"})
+    assert by_year.status_code == 200
+    assert len(by_year.json()["subjects"]) == 4
+
+    mixed = client.get("/api/plan", params={"subject_ids": f"{math},{physics}"})
+    assert mixed.status_code == 200
+    payload = mixed.json()
+    assert {subject["id"] for subject in payload["subjects"]} == {math, physics}
+    assert len(payload["years"]) == 2
+    assert len(payload["degrees"]) == 2
+
+    empty = client.get("/api/plan")
+    assert empty.status_code == 422
+    assert (
+        client.get("/api/plan", params={"subject_ids": "sub-nope"}).status_code == 422
+    )
+
+
 def test_unknown_year_returns_404() -> None:
     response = client.get("/api/years/year-nope")
     assert response.status_code == 404
+    assert client.get("/api/plan", params={"year_id": "year-nope"}).status_code == 404
 
 
 def test_generate_endpoint() -> None:
@@ -88,6 +113,28 @@ def test_generate_partial_endpoint() -> None:
     assert payload["status"] == "partial"
     assert payload["excluded_subjects"]
     assert payload["stats"]["conflict_count"] == 0
+
+
+def test_generate_cross_year_plan_endpoint() -> None:
+    math = store.year_by_id["year-matematicas-1"].subject_ids[0]
+    physics = store.year_by_id["year-matematicas-fisica-1"].subject_ids[0]
+    response = client.post(
+        "/api/schedules/generate",
+        json={"subject_ids": [math, physics]},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "optimal"
+    assert {assignment["subject_id"] for assignment in payload["assignments"]} == {
+        math,
+        physics,
+    }
+    assert len(payload["years"]) == 2
+
+
+def test_generate_requires_plan_or_year() -> None:
+    response = client.post("/api/schedules/generate", json={})
+    assert response.status_code == 422
 
 
 def test_generate_invalid_year() -> None:
@@ -119,6 +166,22 @@ def test_validate_unknown_group_returns_422() -> None:
     assert "desconocidos" in response.json()["detail"]
 
 
+def test_validate_uses_the_explicit_plan_for_missing_groups() -> None:
+    first = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    second = store.subject_by_id[store.year_by_id["year-matematicas-2"].subject_ids[0]]
+    response = client.post(
+        "/api/schedules/validate",
+        json={"group_ids": [first.group_ids[0]], "subject_ids": [first.id, second.id]},
+    )
+    assert response.status_code == 200
+    missing = response.json()["missing"]
+    assert {item["subject_id"] for item in missing} == {first.id, second.id}
+    assert not any(
+        item["subject_id"] == store.year_by_id["year-matematicas-1"].subject_ids[1]
+        for item in missing
+    )
+
+
 def test_free_slots_endpoint() -> None:
     group_ids = _first_year_groups()
     response = client.post(
@@ -134,9 +197,15 @@ def test_free_slots_endpoint() -> None:
 
 def test_share_and_load() -> None:
     group_ids = _first_year_groups()
+    subject_ids = list(store.year_by_id["year-matematicas-1"].subject_ids)
     response = client.post(
         "/api/schedules/share",
-        json={"year_id": "year-matematicas-1", "group_ids": group_ids},
+        json={
+            "year_id": "year-matematicas-1",
+            "subject_ids": subject_ids,
+            "title": "Primero de Matemáticas",
+            "group_ids": group_ids,
+        },
     )
     assert response.status_code == 201
     payload = response.json()
@@ -146,16 +215,50 @@ def test_share_and_load() -> None:
         loaded = client.get(f"/api/shared/{share_id}")
         assert loaded.status_code == 200
         assert loaded.json()["share"]["group_ids"] == group_ids
+        assert loaded.json()["share"]["subject_ids"] == subject_ids
+        assert loaded.json()["share"]["title"] == "Primero de Matemáticas"
         assert loaded.json()["validation"]["group_ids"] == group_ids
     finally:
         (SHARED_DIR / f"{share_id}.json").unlink(missing_ok=True)
 
 
-def test_share_rejects_groups_from_another_year() -> None:
-    other = store.subject_by_id[store.year_by_id["year-matematicas-2"].subject_ids[0]]
+def test_share_supports_cross_year_plans() -> None:
+    math = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    physics = store.subject_by_id[
+        store.year_by_id["year-matematicas-fisica-1"].subject_ids[0]
+    ]
+    group_ids = [math.group_ids[0], physics.group_ids[0]]
     response = client.post(
         "/api/schedules/share",
-        json={"year_id": "year-matematicas-1", "group_ids": [other.group_ids[0]]},
+        json={
+            "subject_ids": [math.id, physics.id],
+            "title": "Matemáticas + Física",
+            "group_ids": group_ids,
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert set(payload["share"]["subject_ids"]) == {math.id, physics.id}
+    assert payload["share"]["year_id"] is None
+    try:
+        loaded = client.get(f"/api/shared/{payload['share']['id']}")
+        assert loaded.status_code == 200
+        assert set(loaded.json()["share"]["subject_ids"]) == {math.id, physics.id}
+    finally:
+        (SHARED_DIR / f"{payload['share']['id']}.json").unlink(missing_ok=True)
+
+
+def test_share_rejects_groups_outside_the_plan() -> None:
+    math = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    physics = store.subject_by_id[
+        store.year_by_id["year-matematicas-fisica-1"].subject_ids[0]
+    ]
+    response = client.post(
+        "/api/schedules/share",
+        json={
+            "subject_ids": [math.id],
+            "group_ids": [physics.group_ids[0]],
+        },
     )
     assert response.status_code == 422
 
