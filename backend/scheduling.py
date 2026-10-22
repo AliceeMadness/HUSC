@@ -32,6 +32,36 @@ def _day_index(day: str) -> int:
     return DAY_ORDER.get(day, len(DAYS))
 
 
+def normalize_events(events: list[dict] | None) -> list[dict]:
+    result = []
+    for event in events or []:
+        day = str(event.get("day", "")).lower()
+        start = str(event.get("start", ""))
+        end = str(event.get("end", ""))
+        if day not in DAY_ORDER:
+            raise ValueError(f"día de extraescolar no válido: {day!r}")
+        start_min, end_min = _minutes(start), _minutes(end)
+        if end_min <= start_min:
+            raise ValueError(f"horario de extraescolar inválido: {start}-{end}")
+        result.append(
+            {
+                "id": event.get("id"),
+                "title": event.get("title") or "Extraescolar",
+                "day": day,
+                "start": start,
+                "end": end,
+                "start_min": start_min,
+                "end_min": end_min,
+                "duration_minutes": end_min - start_min,
+                "location": event.get("location"),
+                "color": event.get("color"),
+                "kind": event.get("kind", "extracurricular"),
+                "note": event.get("note"),
+            }
+        )
+    return result
+
+
 def normalize_blocked(blocked: list[dict] | None) -> list[dict]:
     result: list[dict] = []
     for item in blocked or []:
@@ -222,6 +252,73 @@ def _enriched_sessions(
     return views, conflicts, conflict_map
 
 
+def merge_session_views(views: list[dict]) -> list[dict]:
+    """Merge contiguous raw sessions into one visual block.
+
+    A 09:00-10:00 + 10:00-11:00 pair becomes a single 09:00-11:00 block.  The
+    raw session ids are kept in ``source_session_ids`` so moving or exporting a
+    block can still address the underlying records.
+    """
+
+    groups: dict[tuple, list[dict]] = {}
+    for view in views:
+        key = (
+            view["subject_id"],
+            view["group_id"],
+            view["group_type"],
+            view["day"],
+            view["room_id"],
+            view["building_id"],
+        )
+        groups.setdefault(key, []).append(view)
+
+    blocks: list[dict] = []
+    for group_views in groups.values():
+        group_views.sort(key=lambda item: _minutes(item["start"]))
+        current: dict | None = None
+        for view in group_views:
+            if current is None:
+                current = {
+                    **view,
+                    "id": f"blk-{view['id']}",
+                    "session_ids": [view["id"]],
+                    "conflict_with": list(view.get("conflict_with", [])),
+                    "has_conflict": bool(view.get("has_conflict")),
+                }
+                continue
+            if _minutes(current["end"]) == _minutes(view["start"]):
+                current["end"] = view["end"]
+                current["duration_minutes"] += view["duration_minutes"]
+                current["session_ids"].append(view["id"])
+                current["has_conflict"] = current["has_conflict"] or bool(
+                    view.get("has_conflict")
+                )
+                current["conflict_with"] = list(
+                    dict.fromkeys(current["conflict_with"] + list(view.get("conflict_with", [])))
+                )
+            else:
+                blocks.append(current)
+                current = {
+                    **view,
+                    "id": f"blk-{view['id']}",
+                    "session_ids": [view["id"]],
+                    "conflict_with": list(view.get("conflict_with", [])),
+                    "has_conflict": bool(view.get("has_conflict")),
+                }
+        if current is not None:
+            blocks.append(current)
+
+    blocks.sort(
+        key=lambda block: (
+            _day_index(block["day"]),
+            _minutes(block["start"]),
+            block["subject_name"],
+            block["group_code"],
+        )
+    )
+    return blocks
+
+
 def _missing_requirements(
     store: CatalogStore,
     groups: list[Group],
@@ -297,6 +394,31 @@ def _selection_view(store: CatalogStore, groups: list[Group]) -> list[dict]:
     return result
 
 
+def _event_conflicts(views: list[dict], events: list[dict]) -> list[dict]:
+    result = []
+    for event in events:
+        for view in views:
+            if view["day"] != event["day"]:
+                continue
+            start, end = _minutes(view["start"]), _minutes(view["end"])
+            if start >= event["end_min"] or event["start_min"] >= end:
+                continue
+            result.append(
+                {
+                    "event": event,
+                    "session": view,
+                    "day": event["day"],
+                    "day_label": DAY_LABELS[event["day"]],
+                    "start": format_hm(max(start, event["start_min"])),
+                    "end": format_hm(min(end, event["end_min"])),
+                    "overlap_minutes": min(end, event["end_min"])
+                    - max(start, event["start_min"]),
+                }
+            )
+    result.sort(key=lambda item: (_day_index(item["day"]), _minutes(item["start"])))
+    return result
+
+
 def _blocked_conflicts(views: list[dict], blocked: list[dict]) -> list[dict]:
     result = []
     for view in views:
@@ -343,9 +465,11 @@ def validate_selection(
     day_start: str = "08:00",
     day_end: str = "21:00",
     subject_ids: list[str] | None = None,
+    custom_events: list[dict] | None = None,
 ) -> dict:
     groups = resolve_groups(store, group_ids)
     blocked_norm = normalize_blocked(blocked)
+    events_norm = normalize_events(custom_events)
     if subject_ids is not None:
         plan_set = set(subject_ids)
         outside_plan = [group.id for group in groups if group.subject_id not in plan_set]
@@ -356,25 +480,33 @@ def validate_selection(
             )
     sessions = sessions_for_groups(store, groups)
     views, conflicts, _ = _enriched_sessions(store, sessions)
+    blocks = merge_session_views(views)
     blocked_conflicts = _blocked_conflicts(views, blocked_norm)
+    event_conflicts = _event_conflicts(views, events_norm)
     free = free_intervals(
-        views,
+        views + [event for event in events_norm if event["day"] in DAY_ORDER],
         blocked=blocked_norm,
         day_start=day_start,
         day_end=day_end,
         min_duration=min_free_minutes,
     )
+    stats = _stats(views, conflicts, blocked_conflicts)
+    stats["total_blocks"] = len(blocks)
+    stats["event_conflict_count"] = len(event_conflicts)
     return {
-        "ok": len(conflicts) == 0 and len(blocked_conflicts) == 0,
+        "ok": len(conflicts) == 0 and len(blocked_conflicts) == 0 and len(event_conflicts) == 0,
         "group_ids": [group.id for group in groups],
         "subject_ids": list(dict.fromkeys(subject_ids)) if subject_ids is not None else None,
         "selections": _selection_view(store, groups),
         "missing": _missing_requirements(store, groups, subject_ids=subject_ids),
         "sessions": views,
+        "blocks": blocks,
         "conflicts": conflicts,
         "blocked_conflicts": blocked_conflicts,
+        "event_conflicts": event_conflicts,
+        "custom_events": events_norm,
         "free_slots": free,
-        "stats": _stats(views, conflicts, blocked_conflicts),
+        "stats": stats,
     }
 
 
@@ -463,6 +595,56 @@ def _build_variables(store: CatalogStore, subject_ids: list[str]) -> list[Variab
             candidates = sorted(by_type[group_type], key=lambda group: natural_key(group.code))
             variables.append(Variable(subject_id, group_type, candidates))
     return variables
+
+
+def _apply_pins(
+    store: CatalogStore,
+    variables: list[Variable],
+    pinned_group_ids: list[str] | None,
+) -> list[Variable]:
+    """Narrow each pinned variable to its fixed group.
+
+    Pins are group-level because the generator chooses groups, not individual
+    meetings.  A pinned group keeps *all* its weekly sessions immovable.
+    """
+
+    if not pinned_group_ids:
+        return variables
+    pinned_by_key: dict[tuple[str, GroupType], Group] = {}
+    for group_id in dict.fromkeys(pinned_group_ids):
+        group = store.group_by_id.get(group_id)
+        if group is None:
+            raise ValueError(f"Grupo fijado desconocido: {group_id}")
+        key = (group.subject_id, group.type)
+        previous = pinned_by_key.get(key)
+        if previous is not None and previous.id != group.id:
+            raise ValueError(
+                f"No se pueden fijar dos grupos del mismo tipo: {previous.code} y {group.code}"
+            )
+        pinned_by_key[key] = group
+
+    present_keys = {variable.key for variable in variables}
+    missing = [key for key in pinned_by_key if key not in present_keys]
+    if missing:
+        labels = [
+            f"{store.subject_by_id[subject_id].name} ({group_type.value})"
+            for subject_id, group_type in missing
+        ]
+        raise ValueError("Hay grupos fijados fuera de la matrícula: " + ", ".join(labels))
+
+    result = []
+    for variable in variables:
+        pinned = pinned_by_key.get(variable.key)
+        if pinned is None:
+            result.append(variable)
+            continue
+        if pinned.id not in {group.id for group in variable.groups}:
+            raise ValueError(
+                f"El grupo fijado {pinned.code} no pertenece a la asignatura "
+                f"{store.subject_by_id[variable.subject_id].name}"
+            )
+        result.append(Variable(variable.subject_id, variable.type, [pinned]))
+    return result
 
 
 def _plan_years(store: CatalogStore, subject_ids: list[str]) -> list[dict]:
@@ -640,6 +822,7 @@ def _greedy_subset(
     order: list[str],
     blocked: list[dict],
     node_limit: int,
+    pinned_group_ids: list[str] | None = None,
 ) -> tuple[list[str], list[Group], dict]:
     """Add subjects one by one, keeping only those that still fit.
 
@@ -649,11 +832,31 @@ def _greedy_subset(
     the UI which subjects were left out.
     """
 
-    included: list[str] = []
+    pinned_subjects = {
+        store.group_by_id[group_id].subject_id
+        for group_id in pinned_group_ids or []
+        if group_id in store.group_by_id
+    }
+    included: list[str] = [subject_id for subject_id in subject_ids if subject_id in pinned_subjects]
     current: list[Group] = []
+    if included:
+        variables = _apply_pins(store, _build_variables(store, included), pinned_group_ids)
+        groups, _ = _strict_solution(
+            store,
+            variables,
+            blocked,
+            max_solutions=1,
+            node_limit=min(node_limit, 30_000),
+        )
+        if groups is None:
+            return [], [], {"subset_attempts": len(order), "pinned_infeasible": True}
+        current = groups
+
     for subject_id in order:
+        if subject_id in pinned_subjects:
+            continue
         trial = included + [subject_id]
-        variables = _build_variables(store, trial)
+        variables = _apply_pins(store, _build_variables(store, trial), pinned_group_ids)
         groups, meta = _strict_solution(
             store,
             variables,
@@ -669,7 +872,9 @@ def _greedy_subset(
         return [], [], {"subset_attempts": len(order)}
 
     ordered_included = [subject_id for subject_id in subject_ids if subject_id in included]
-    variables = _build_variables(store, ordered_included)
+    variables = _apply_pins(
+        store, _build_variables(store, ordered_included), pinned_group_ids
+    )
     groups, meta = _strict_solution(store, variables, blocked, max_solutions=60, node_limit=node_limit)
     return ordered_included, groups or current, {"subset_attempts": len(order), **meta}
 
@@ -683,15 +888,24 @@ def generate_schedule(
     allow_conflicts: bool = True,
     max_solutions: int = 60,
     node_limit: int = 200_000,
+    custom_events: list[dict] | None = None,
+    pinned_group_ids: list[str] | None = None,
 ) -> dict:
     """Generate a timetable for a year (legacy) or an arbitrary plan.
 
     ``subject_ids`` is the new contract: it may mix subjects from several
     academic years and degrees.  ``year_id`` remains as a convenience for
-    single-year plans and old API clients.
+    single-year plans and old API clients.  ``custom_events`` are treated as
+    occupied time; ``pinned_group_ids`` are kept exactly as chosen.
     """
 
     blocked_norm = normalize_blocked(blocked)
+    events_norm = normalize_events(custom_events)
+    solver_blocked = blocked_norm + [
+        {**event, "start_min": event["start_min"], "end_min": event["end_min"]}
+        for event in events_norm
+    ]
+    pinned = list(dict.fromkeys(pinned_group_ids or []))
     year_data: dict | None = None
 
     if subject_ids is None:
@@ -711,8 +925,8 @@ def generate_schedule(
             if set(requested) <= set(year.subject_ids):
                 year_data = year.model_dump(mode="json")
 
-    variables = _build_variables(store, requested)
-    best, meta = _strict_solution(store, variables, blocked_norm, max_solutions, node_limit)
+    variables = _apply_pins(store, _build_variables(store, requested), pinned)
+    best, meta = _strict_solution(store, variables, solver_blocked, max_solutions, node_limit)
 
     included = requested
     excluded: list[str] = []
@@ -736,7 +950,14 @@ def generate_schedule(
             ]
             candidates = []
             for order in orders:
-                candidate = _greedy_subset(store, requested, order, blocked_norm, node_limit)
+                candidate = _greedy_subset(
+                    store,
+                    requested,
+                    order,
+                    solver_blocked,
+                    node_limit,
+                    pinned_group_ids=pinned,
+                )
                 if candidate[0]:
                     candidates.append(candidate)
             if candidates:
@@ -760,9 +981,9 @@ def generate_schedule(
             status = "partial"
             solver = {"status": status, **meta, "subset": subset_meta}
             # Re-run validate with the subset; variables must match the subset too.
-            variables = _build_variables(store, included)
+            variables = _apply_pins(store, _build_variables(store, included), pinned)
         elif allow_conflicts:
-            groups, relaxed_meta = _relaxed_solution(store, variables, blocked_norm)
+            groups, relaxed_meta = _relaxed_solution(store, variables, solver_blocked)
             status = "relaxed"
             solver = {"status": status, **meta, "relaxed": relaxed_meta}
         else:
@@ -777,9 +998,11 @@ def generate_schedule(
         day_start=store.catalog.term.day_start,
         day_end=store.catalog.term.day_end,
         subject_ids=included,
+        custom_events=events_norm,
     )
     result["status"] = status
     result["solver"] = solver
+    result["pinned_group_ids"] = pinned
     result["year"] = year_data
     result["years"] = _plan_years(store, included)
     degree_ids = list(dict.fromkeys(year["degree_id"] for year in result["years"]))
@@ -829,14 +1052,16 @@ def free_slots_for_groups(
     day_start: str = "08:00",
     day_end: str = "21:00",
     min_duration: int = 60,
+    custom_events: list[dict] | None = None,
 ) -> dict:
     groups = resolve_groups(store, group_ids)
     ignored = set(ignore_session_ids or [])
     sessions = sessions_for_groups(store, groups, ignored)
     blocked_norm = normalize_blocked(blocked)
+    events_norm = normalize_events(custom_events)
     views = [store.session_view(session) for session in sessions]
     slots = free_intervals(
-        views,
+        views + events_norm,
         blocked=blocked_norm,
         day_start=day_start,
         day_end=day_end,
@@ -850,4 +1075,5 @@ def free_slots_for_groups(
         "min_duration": min_duration,
         "slots": slots,
         "occupied": views,
+        "custom_events": events_norm,
     }

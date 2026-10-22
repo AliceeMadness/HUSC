@@ -13,6 +13,7 @@ warning when the source data is ambiguous.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import json
@@ -152,11 +153,16 @@ def session_id(group_id: str, day: str, start: str, room_id: str) -> str:
     return f"ses-{hashlib.sha1(raw).hexdigest()[:10]}"
 
 
-def main() -> int:
-    if not CSV_PATH.exists() or not FORMS_PATH.exists():
-        raise SystemExit("Faltan horario.csv o forms_data.json en la raíz del repositorio")
+def import_files(
+    csv_path: Path = CSV_PATH,
+    forms_path: Path = FORMS_PATH,
+    output_path: Path = OUTPUT_PATH,
+    extra_notes: list[str] | None = None,
+) -> Catalog:
+    if not csv_path.exists() or not forms_path.exists():
+        raise SystemExit(f"Faltan {csv_path} o {forms_path}")
 
-    forms = json.loads(FORMS_PATH.read_text(encoding="utf-8"))
+    forms = json.loads(forms_path.read_text(encoding="utf-8"))
     warnings: list[str] = []
 
     # Ordered maps keep the generated document deterministic and pleasant to read.
@@ -180,7 +186,7 @@ def main() -> int:
             forms_subject_groups[(year_id, subject_name.strip())] = list(group_codes)
 
     csv_rows = 0
-    with CSV_PATH.open(encoding="utf-8-sig", newline="") as handle:
+    with csv_path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter=";")
         required = {"Curso", "Slot", "Asignatura", "Grupo", "Aula", "Hora"}
         missing = required - set(reader.fieldnames or [])
@@ -393,6 +399,8 @@ def main() -> int:
         "Las horas L09/M09/... se han descompuesto en day (mon..fri) y start/end HH:MM. "
         "El slot original se conserva en legacy.slot.",
     ]
+    if extra_notes:
+        notes.extend(extra_notes)
 
     catalog = Catalog(
         schema_version="2.0",
@@ -408,8 +416,12 @@ def main() -> int:
             weeks=15,
         ),
         source=SourceInfo(
-            legacy_csv=str(CSV_PATH.relative_to(ROOT)).replace("\\", "/"),
-            legacy_forms=str(FORMS_PATH.relative_to(ROOT)).replace("\\", "/"),
+            legacy_csv=str(csv_path.resolve().relative_to(ROOT)).replace("\\", "/")
+            if csv_path.resolve().is_relative_to(ROOT)
+            else str(csv_path.resolve()),
+            legacy_forms=str(forms_path.resolve().relative_to(ROOT)).replace("\\", "/")
+            if forms_path.resolve().is_relative_to(ROOT)
+            else str(forms_path.resolve()),
             legacy_config="config.yaml",
             imported_at=datetime.now(timezone.utc),
             source_week=7,
@@ -425,16 +437,16 @@ def main() -> int:
         class_sessions=sessions_sorted,
     )
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
         json.dumps(catalog.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     (ROOT / "data" / "shared_schedules").mkdir(parents=True, exist_ok=True)
     (ROOT / "data" / "shared_schedules" / ".gitkeep").touch()
 
-    print(f"Leídas {csv_rows} filas de horario.csv")
-    print(f"Catálogo escrito en {OUTPUT_PATH.relative_to(ROOT)}")
+    print(f"Leídas {csv_rows} filas de {csv_path}")
+    print(f"Catálogo escrito en {output_path}")
     print(
         f"Resumen: {len(degrees)} grados · {len(years_sorted)} cursos · "
         f"{len(subjects_sorted)} asignaturas · {len(groups_sorted)} grupos · "
@@ -446,6 +458,17 @@ def main() -> int:
             print(f"  - {warning}")
     else:
         print("Sin avisos de integridad.")
+    return catalog
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--csv", type=Path, default=CSV_PATH, help="CSV legacy de entrada")
+    parser.add_argument("--forms", type=Path, default=FORMS_PATH, help="JSON de grupos")
+    parser.add_argument("--output", type=Path, default=OUTPUT_PATH, help="catálogo JSON de salida")
+    parser.add_argument("--note", action="append", default=[], help="nota adicional de la fuente")
+    args = parser.parse_args()
+    import_files(args.csv, args.forms, args.output, extra_notes=args.note)
     return 0
 
 

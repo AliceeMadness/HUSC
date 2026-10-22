@@ -75,6 +75,7 @@ function layoutDay(events) {
 export function renderTimetable(container, options) {
   const {
     sessions = [],
+    events = [],
     term,
     candidateSlots = [],
     activeCandidate = null,
@@ -88,10 +89,14 @@ export function renderTimetable(container, options) {
 
   const head = DAYS.map((day) => {
     const daySessions = sessions.filter((session) => session.day === day);
+    const dayEvents = events.filter((event) => event.day === day);
     const total = daySessions.reduce((sum, session) => sum + session.duration_minutes, 0);
-    const label = daySessions.length
+    let label = daySessions.length
       ? `${daySessions.length} clase${daySessions.length === 1 ? "" : "s"} · ${formatDuration(total)}`
       : "libre";
+    if (dayEvents.length) {
+      label += ` · +${dayEvents.length} extra`;
+    }
     return `
       <div class="tt-day-head" data-day="${day}">
         <span class="tt-day-name">${escapeHtml(DAY_LABELS[day] ?? day)}</span>
@@ -107,47 +112,84 @@ export function renderTimetable(container, options) {
       </span>`);
   }
 
+  const eventItems = events.map((event) => ({
+    ...event,
+    _isEvent: true,
+    subject_name: event.title,
+    group_code: "",
+    room_name: event.location || "Extraescolar",
+    building_name: "",
+    group_type_label: "Extraescolar",
+    color: event.color || "#7c5cbf",
+    duration_minutes: toMinutes(event.end) - toMinutes(event.start),
+    day_label: DAY_LABELS[event.day] ?? event.day,
+    has_conflict: false,
+    has_pref_conflict: false,
+  }));
+
   const columns = DAYS.map((day) => {
-    const daySessions = layoutDay(sessions.filter((session) => session.day === day));
-    const blocks = daySessions.map((session) => {
+    const dayItems = layoutDay([
+      ...sessions.filter((session) => session.day === day),
+      ...eventItems.filter((event) => event.day === day),
+    ]);
+    const blocks = dayItems.map((session) => {
       const offset = toMinutes(session.start) - dayStart;
       const duration = session.duration_minutes;
       const gap = session.columns > 1 ? 1.4 : 1;
       const width = 100 / session.columns - gap;
       const left = session.column * (100 / session.columns) + gap / 2;
+      const isEvent = Boolean(session._isEvent);
       const classes = [
         "tt-block",
         duration < 45 ? "is-short" : "",
-        session.has_conflict ? "is-conflict" : "",
-        session.has_pref_conflict ? "is-pref" : "",
-        session.id === movingSessionId ? "is-moving" : "",
+        isEvent ? "is-event" : "",
+        !isEvent && session.has_conflict ? "is-conflict" : "",
+        !isEvent && session.has_pref_conflict ? "is-pref" : "",
+        !isEvent && session.pinned ? "is-pinned" : "",
+        session.has_event_conflict ? "is-event-conflict" : "",
+        !isEvent && session.id === movingSessionId ? "is-moving" : "",
       ]
         .filter(Boolean)
         .join(" ");
-      // Start with the exact visible label so assistive technologies (and
-      // Lighthouse's label-content-name-mismatch rule) get a matching name.
-      const tooltip = [
-        `${session.subject_name} ${session.group_code} · ${session.room_name}.`,
-        `${session.day_label} ${session.start}–${session.end}.`,
-        `${session.group_type_label}, ${session.building_name}.`,
-        session.has_conflict ? "¡Solapa con otra clase!" : "",
-        session.has_pref_conflict ? "Cae en una franja que querías evitar." : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
-      const meta = `${session.group_code} · ${session.room_name}`;
+      const tooltip = isEvent
+        ? [
+            `${session.title} ${session.location || "Extraescolar"}.`,
+            `${session.day_label} ${session.start}–${session.end}.`,
+            "Actividad extraescolar semanal.",
+            session.has_event_conflict ? "¡Solapa con una clase!" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : [
+            `${session.subject_name} ${session.group_code} · ${session.room_name}.`,
+            `${session.day_label} ${session.start}–${session.end}.`,
+            `${session.group_type_label}, ${session.building_name}.`,
+            session.source_session_ids?.length > 1
+              ? `Bloque unido de ${session.source_session_ids.length} sesiones.`
+              : "",
+            session.has_conflict ? "¡Solapa con otra clase!" : "",
+            session.has_pref_conflict ? "Cae en una franja que querías evitar." : "",
+            session.has_event_conflict ? "¡Solapa con una extraescolar!" : "",
+            session.pinned ? "Grupo fijado." : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+      const meta = isEvent
+        ? session.location || "Extraescolar"
+        : `${session.group_code} · ${session.room_name}`;
+      const colorVar = isEvent
+        ? `--event-color:${escapeHtml(session.color)}`
+        : `--subject-color:${escapeHtml(session.color || "var(--accent)")}`;
       return `
         <button
           class="${classes}"
           type="button"
-          data-session-id="${escapeHtml(session.id)}"
-          data-subject-id="${escapeHtml(session.subject_id)}"
-          data-group-id="${escapeHtml(session.group_id)}"
-          style="--offset:${offset};--duration:${duration};--left:${left.toFixed(3)}%;--width:${width.toFixed(3)}%;--subject-color:${escapeHtml(session.color || "var(--accent)")}"
+          ${isEvent ? `data-event-id="${escapeHtml(session.id)}"` : `data-session-id="${escapeHtml(session.id)}" data-subject-id="${escapeHtml(session.subject_id)}" data-group-id="${escapeHtml(session.group_id)}"`}
+          style="--offset:${offset};--duration:${duration};--left:${left.toFixed(3)}%;--width:${width.toFixed(3)}%;${colorVar}"
           title="${escapeHtml(tooltip)}"
           aria-label="${escapeHtml(tooltip)}"
         >
-          <span class="tt-block-name">${escapeHtml(session.subject_name)}</span>
+          <span class="tt-block-name">${escapeHtml(isEvent ? session.title : session.subject_name)}</span>
           <span class="tt-block-meta">${escapeHtml(meta)}</span>
         </button>`;
     }).join("");
@@ -179,7 +221,7 @@ export function renderTimetable(container, options) {
       </div>`;
   }).join("");
 
-  const empty = sessions.length
+  const empty = sessions.length || events.length
     ? ""
     : `<div class="tt-empty"><div class="tt-empty-inner">
          <span class="tt-empty-icon">＋</span>

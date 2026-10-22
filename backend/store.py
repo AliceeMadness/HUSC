@@ -17,6 +17,7 @@ from .models import (
     Degree,
     Group,
     Room,
+    CustomEvent,
     SharedSchedule,
     SharedSelection,
     Subject,
@@ -253,6 +254,8 @@ class CatalogStore:
         subject_ids: list[str] | None = None,
         title: str | None = None,
         year_id: str | None = None,
+        custom_events: list[dict] | None = None,
+        pinned_group_ids: list[str] | None = None,
     ) -> SharedSchedule:
         """Store a snapshot of a plan, possibly spanning several years/degrees.
 
@@ -302,6 +305,14 @@ class CatalogStore:
                 )
             )
 
+        pins = list(dict.fromkeys(pinned_group_ids or []))
+        unknown_pins = [group_id for group_id in pins if group_id not in ordered_ids]
+        if unknown_pins:
+            raise ValueError(
+                "Hay grupos fijados que no están seleccionados: " + ", ".join(unknown_pins)
+            )
+        events = [CustomEvent.model_validate(event) for event in custom_events or []]
+
         share_id = secrets.token_hex(4)
         while (SHARED_DIR / f"{share_id}.json").exists():
             share_id = secrets.token_hex(4)
@@ -321,6 +332,8 @@ class CatalogStore:
             title=title,
             group_ids=ordered_ids,
             selections=selections,
+            custom_events=events,
+            pinned_group_ids=pins,
         )
         SHARED_DIR.mkdir(parents=True, exist_ok=True)
         target = SHARED_DIR / f"{share_id}.json"

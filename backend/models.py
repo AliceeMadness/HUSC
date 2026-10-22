@@ -187,6 +187,47 @@ class ClassSession(StrictModel):
         return self
 
 
+class CustomEvent(StrictModel):
+    """A recurring weekly personal event (extracurricular class, work, …).
+
+    These events are not part of the university catalogue.  They are carried by
+    validate/generate/share requests and act as occupied time for the solver.
+    """
+
+    id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=120)
+    day: Day
+    start: str
+    end: str
+    location: str | None = Field(default=None, max_length=120)
+    color: str | None = Field(default=None, max_length=20)
+    kind: str = "extracurricular"
+    note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("day")
+    @classmethod
+    def _weekday(cls, value: Day) -> Day:
+        if value not in {Day.mon, Day.tue, Day.wed, Day.thu, Day.fri}:
+            raise ValueError("las extraescolares solo admiten días lectivos (mon..fri)")
+        return value
+
+    @field_validator("start", "end")
+    @classmethod
+    def _valid_time(cls, value: str) -> str:
+        parse_hm(value)
+        return value
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "CustomEvent":
+        if parse_hm(self.end) <= parse_hm(self.start):
+            raise ValueError("end debe ser posterior a start")
+        return self
+
+    @property
+    def duration_minutes(self) -> int:
+        return parse_hm(self.end) - parse_hm(self.start)
+
+
 class SharedSelection(StrictModel):
     subject_id: str
     type: str
@@ -210,6 +251,8 @@ class SharedSchedule(StrictModel):
     title: str | None = None
     group_ids: list[str]
     selections: list[SharedSelection]
+    custom_events: list[CustomEvent] = Field(default_factory=list)
+    pinned_group_ids: list[str] = Field(default_factory=list)
 
 
 class Catalog(StrictModel):

@@ -8,6 +8,9 @@ __pycache__/
 # App runtime
 data/shared_schedules/*.json
 !data/shared_schedules/.gitkeep
+data/usc_sync.db
+data/usc_sync.db-journal
+data/usc_sync.csv
 
 # OS / editors
 .DS_Store

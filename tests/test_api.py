@@ -34,6 +34,13 @@ def test_health_and_counts() -> None:
     assert client.get("/health").json()["status"] == "ok"
 
 
+def test_sync_status_endpoint() -> None:
+    response = client.get("/api/sync/status")
+    assert response.status_code == 200
+    assert "available" in response.json()
+    assert "last_run" in response.json()
+
+
 def test_catalog_and_schema() -> None:
     response = client.get("/api/catalog")
     assert response.status_code == 200
@@ -182,6 +189,72 @@ def test_validate_uses_the_explicit_plan_for_missing_groups() -> None:
     )
 
 
+def test_validate_and_generate_with_custom_events_and_pins() -> None:
+    group_ids = _first_year_groups()
+    first_group = store.group_by_id[group_ids[0]]
+    session = store.sessions_by_group[first_group.id][0]
+    event = {
+        "id": "evt-api",
+        "title": "Trabajo",
+        "day": session.day.value,
+        "start": session.start,
+        "end": session.end,
+        "color": "#7c5cbf",
+    }
+
+    validation = client.post(
+        "/api/schedules/validate",
+        json={"group_ids": group_ids, "custom_events": [event]},
+    )
+    assert validation.status_code == 200
+    assert validation.json()["event_conflicts"]
+    assert validation.json()["stats"]["event_conflict_count"] >= 1
+
+    generated = client.post(
+        "/api/schedules/generate",
+        json={
+            "year_id": "year-matematicas-1",
+            "pinned_group_ids": [first_group.id],
+            "custom_events": [
+                {
+                    "id": "evt-api-2",
+                    "title": "Entrenamiento",
+                    "day": "mon",
+                    "start": "18:00",
+                    "end": "20:00",
+                }
+            ],
+        },
+    )
+    assert generated.status_code == 200
+    payload = generated.json()
+    assert first_group.id in payload["group_ids"]
+    assert payload["stats"]["event_conflict_count"] == 0
+    assert payload["blocks"]
+
+
+def test_free_slots_endpoint_with_event() -> None:
+    group_ids = _first_year_groups()[:2]
+    event = {
+        "id": "evt-free",
+        "title": "Academia",
+        "day": "fri",
+        "start": "10:00",
+        "end": "12:00",
+    }
+    response = client.post(
+        "/api/free-slots",
+        json={"group_ids": group_ids, "duration_minutes": 30, "custom_events": [event]},
+    )
+    assert response.status_code == 200
+    for slot in response.json()["slots"]:
+        assert not (
+            slot["day"] == "fri"
+            and slot["start"] <= "10:00"
+            and slot["end"] >= "12:00"
+        )
+
+
 def test_free_slots_endpoint() -> None:
     group_ids = _first_year_groups()
     response = client.post(
@@ -205,6 +278,17 @@ def test_share_and_load() -> None:
             "subject_ids": subject_ids,
             "title": "Primero de Matemáticas",
             "group_ids": group_ids,
+            "pinned_group_ids": [group_ids[0]],
+            "custom_events": [
+                {
+                    "id": "evt-share",
+                    "title": "Trabajo",
+                    "day": "fri",
+                    "start": "18:00",
+                    "end": "20:00",
+                    "color": "#7c5cbf",
+                }
+            ],
         },
     )
     assert response.status_code == 201
@@ -217,6 +301,8 @@ def test_share_and_load() -> None:
         assert loaded.json()["share"]["group_ids"] == group_ids
         assert loaded.json()["share"]["subject_ids"] == subject_ids
         assert loaded.json()["share"]["title"] == "Primero de Matemáticas"
+        assert loaded.json()["share"]["pinned_group_ids"] == [group_ids[0]]
+        assert loaded.json()["share"]["custom_events"][0]["title"] == "Trabajo"
         assert loaded.json()["validation"]["group_ids"] == group_ids
     finally:
         (SHARED_DIR / f"{share_id}.json").unlink(missing_ok=True)
@@ -280,6 +366,30 @@ def test_ics_export() -> None:
     assert "BEGIN:VCALENDAR" in response.text
     assert "RRULE:FREQ=WEEKLY" in response.text
     assert "END:VCALENDAR" in response.text
+
+
+def test_ics_export_includes_extracurricular_events() -> None:
+    group_ids = _first_year_groups()
+    response = client.post(
+        "/api/schedules/export.ics",
+        json={
+            "group_ids": group_ids,
+            "name": "Horario con extraescolar",
+            "custom_events": [
+                {
+                    "id": "evt-ics",
+                    "title": "Trabajo",
+                    "day": "fri",
+                    "start": "18:00",
+                    "end": "20:00",
+                    "location": "Oficina",
+                }
+            ],
+        },
+    )
+    assert response.status_code == 200
+    assert "SUMMARY:Trabajo" in response.text
+    assert "LOCATION:Oficina" in response.text
 
 
 def test_frontend_is_served() -> None:

@@ -168,6 +168,10 @@
                 <span class="stat" id="days-stat">0 días</span>
               </div>
               <div class="toolbar-actions">
+                <button class="btn btn-quiet" id="add-event-btn" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                  Extraescolar
+                </button>
                 <button class="btn btn-quiet" id="export-btn" type="button">
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v2.5h14V17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   Exportar
@@ -199,6 +203,7 @@
               <div class="free-slots" id="free-slots">
                 <p class="empty-copy">Elige algún grupo para ver tus huecos.</p>
               </div>
+              <div class="event-list" id="event-list"></div>
             </section>
 
             <section class="insight-card panel" id="move-card" aria-labelledby="move-title">
@@ -265,6 +270,63 @@
         <span><strong>Imprimir / PDF</strong><small>Vista limpia para papel</small></span>
       </button>
     </div>
+  </dialog>
+
+  <dialog class="dialog" id="event-dialog">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">Tu semana</p>
+        <h2 id="event-dialog-title">Añadir extraescolar</h2>
+      </div>
+      <button class="icon-btn icon-btn-small" type="button" data-close-dialog aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p class="dialog-copy">Se repite cada semana. El generador evitará solaparla con clases y la tendrá en cuenta al buscar huecos.</p>
+    <form class="event-form" id="event-form">
+      <label class="form-field form-field-wide">
+        <span>Título</span>
+        <input id="event-title" type="text" maxlength="120" required placeholder="Entrenamiento, academia, trabajo…">
+      </label>
+      <div class="form-row">
+        <label class="form-field">
+          <span>Día</span>
+          <select id="event-day" required>
+            <option value="mon">Lunes</option>
+            <option value="tue">Martes</option>
+            <option value="wed">Miércoles</option>
+            <option value="thu">Jueves</option>
+            <option value="fri">Viernes</option>
+          </select>
+        </label>
+        <label class="form-field">
+          <span>Inicio</span>
+          <input id="event-start" type="time" step="300" value="18:00" required>
+        </label>
+        <label class="form-field">
+          <span>Fin</span>
+          <input id="event-end" type="time" step="300" value="20:00" required>
+        </label>
+      </div>
+      <label class="form-field form-field-wide">
+        <span>Lugar <small>opcional</small></span>
+        <input id="event-location" type="text" maxlength="120" placeholder="Pabellón, aula, oficina…">
+      </label>
+      <fieldset class="event-color-field">
+        <legend>Color</legend>
+        <div class="event-colors" id="event-colors">
+          <label><input type="radio" name="event-color" value="#7c5cbf" aria-label="Color violeta" checked><span style="--swatch:#7c5cbf"></span></label>
+          <label><input type="radio" name="event-color" value="#0f766e" aria-label="Color verde"><span style="--swatch:#0f766e"></span></label>
+          <label><input type="radio" name="event-color" value="#b45309" aria-label="Color ámbar"><span style="--swatch:#b45309"></span></label>
+          <label><input type="radio" name="event-color" value="#be123c" aria-label="Color granate"><span style="--swatch:#be123c"></span></label>
+          <label><input type="radio" name="event-color" value="#2563eb" aria-label="Color azul"><span style="--swatch:#2563eb"></span></label>
+        </div>
+      </fieldset>
+      <div class="event-form-actions">
+        <button class="btn btn-danger hidden" id="event-delete" type="button">Eliminar</button>
+        <button class="btn btn-accent" type="submit">Guardar extraescolar</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog class="dialog dialog-plan" id="plan-dialog">

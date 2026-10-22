@@ -12,7 +12,7 @@ clase y permite compartir o exportar el resultado.
 
 ![Vista de escritorio en tema claro](docs/workspace-light.png)
 
-[Pantalla de inicio](docs/landing-light.png) · [Matrícula mixta](docs/workspace-mixed.png) · [Selector de matrícula](docs/plan-dialog.png) · [Tema oscuro](docs/workspace-dark.png)
+[Pantalla de inicio](docs/landing-light.png) · [Matrícula mixta](docs/workspace-mixed.png) · [Selector de matrícula](docs/plan-dialog.png) · [Extraescolares y fijaciones](docs/workspace-extras.png) · [Diálogo extraescolar](docs/event-dialog.png) · [Tema oscuro](docs/workspace-dark.png)
 
 ## Funcionalidad
 
@@ -25,14 +25,25 @@ clase y permite compartir o exportar el resultado.
   instantáneo de solapes y de coincidencia con tus preferencias.
 - **Calendario semanal** con bloques coloreados por materia, conflictos marcados
   y geometría a 30 minutos.
+- **Bloques consecutivos unidos**: `9:00–10:00` + `10:00–11:00` se muestran como
+  una sola clase `9:00–11:00` (también en el `.ics`), conservando las sesiones
+  originales para moverlas o exportarlas.
+- **Clases extraescolares** recurrentes: título, día, hora, lugar y color. Se
+  pintan en el calendario, bloquean huecos, avisan de cruces y el generador las
+  evita.
+- **Horas fijadas**: un grupo puede marcarse como inamovible. El generador
+  conserva sus horas y el modo «mover» no ofrece alternativas para él.
 - **Generación automática** con un solver de restricciones: minimiza días y
-  huecos, respeta franjas bloqueadas y, si hay optativas incompatibles, devuelve
-  el mayor subconjunto que cabe sin solapes.
+  huecos, respeta franjas bloqueadas, extraescolares y grupos fijados; si hay
+  optativas incompatibles, devuelve el mayor subconjunto que cabe sin solapes.
 - **Huecos libres** por día con duración mínima configurable (30 min / 1 h / 1,5 h).
 - **Modo «mover una clase»**: al pulsar una clase, busca huecos compatibles para
   el grupo y para el resto de tu horario, y permite copiar la propuesta.
-- **Compartir** con un enlace corto (se guarda una instantánea en el servidor).
+- **Compartir** con un enlace corto (se guarda una instantánea en el servidor,
+  incluyendo extraescolares y fijaciones).
 - **Exportar** a JSON, calendario `.ics` o PDF mediante impresión.
+- **Sincronización real con la USC** usando el mismo acceso AJAX que la app de
+  referencia, con fallback sintético en SQLite.
 - **Tema claro/oscuro**, diseño responsive y persistencia local del horario.
 
 ## Stack
@@ -41,6 +52,7 @@ clase y permite compartir o exportar el resultado.
 | --- | --- |
 | Backend | Python 3.11+ · FastAPI · Pydantic v2 |
 | Datos | JSON versionado con JSON Schema + validación referencial |
+| Ingesta USC | `httpx` + BeautifulSoup + SQLite (`data/usc_sync.db`) |
 | Frontend | HTML + CSS + JavaScript ES modules, sin build step |
 | Tests | pytest + FastAPI TestClient |
 
@@ -78,11 +90,12 @@ uvicorn backend.main:app --reload
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Cubren integridad del catálogo, importación, detección de solapes, huecos,
-generación para los nueve cursos y para matrículas que mezclan cursos/grados,
-preferencias, enlaces compartidos, ICS y los endpoints principales. La interfaz
-obtiene 100/100 en accesibilidad, buenas prácticas y SEO con Lighthouse, tanto en
-tema claro como oscuro.
+69 tests cubren integridad del catálogo, importación, detección de solapes,
+huecos, generación para los nueve cursos y para matrículas que mezclan
+cursos/grados, bloques consecutivos, extraescolares, fijaciones, preferencias,
+enlaces compartidos, ICS, parser USC, fallback SQLite y los endpoints
+principales. La interfaz obtiene 100/100 en accesibilidad, buenas prácticas y SEO
+con Lighthouse, tanto en tema claro como oscuro.
 
 ## Estructura
 
@@ -90,8 +103,9 @@ tema claro como oscuro.
 backend/
   main.py          API FastAPI + servido de la SPA
   models.py        modelo Pydantic y validación referencial
-  scheduling.py    solver, solapes, huecos, ICS-ready sessions
+  scheduling.py    solver, solapes, huecos, bloques unidos, fijaciones
   store.py         índices del catálogo y persistencia de enlaces
+  usc_source.py    acceso AJAX a la USC + fallback sintético + SQLite
   timeutil.py      horas HH:MM y días
   ids.py           slugs e ids estables
 frontend/
@@ -102,9 +116,12 @@ frontend/
   js/api.js        cliente HTTP
 data/
   catalog.json     catálogo canónico versionado
+  usc_sync.db      BBDD SQLite de la última sincronización (generada)
+  usc_sync.csv     CSV normalizado de la última sincronización (generado)
   shared_schedules/
 scripts/
   import_legacy.py importador CSV/JSON -> catálogo
+  sync_usc.py      USC AJAX o fallback sintético -> SQLite/CSV/catálogo
 schema/
   catalog.schema.json
 docs/
@@ -129,6 +146,8 @@ tests/
 | `POST` | `/api/schedules/share` | guardar una instantánea y obtener id |
 | `GET` | `/api/shared/{id}` | recuperar una instantánea compartida |
 | `GET` | `/api/schedules/export.ics` | calendario `.ics` de 15 semanas |
+| `POST` | `/api/schedules/export.ics` | `.ics` con bloques unidos y extraescolares |
+| `GET` | `/api/sync/status` | última sincronización USC (live/synthetic) |
 
 Ejemplo de generación:
 
@@ -146,6 +165,47 @@ curl -X POST http://127.0.0.1:8000/api/schedules/generate \
     "sub-matematicas-2-geometria-lineal",
     "sub-matematicas-fisica-1-fisica-general-ii"
   ]}'
+```
+
+## Acceso a los horarios de la USC
+
+La app de referencia no descarga una página normal: hace un **POST AJAX a Drupal**
+al widget del calendario, con `_drupal_ajax=1`, `js=true` y el token
+`ajax_page_state[libraries]`, y parsea el fragmento HTML
+`#course-detail-controller` (`.calendar-day`, `.ml-academic-subject`). Esa
+mecánica está reproducida en `backend/usc_source.py`.
+
+```powershell
+# Intenta la USC para los 9 cursos de config.yaml; si un curso falla,
+# rellena ese curso con datos sintéticos. Guarda la foto en SQLite.
+python scripts/sync_usc.py
+
+# Fuerza el fallback inventado (útil sin red o para demos)
+python scripts/sync_usc.py --synthetic
+```
+
+La sincronización escribe:
+
+- `data/usc_sync.db`: SQLite con `sync_runs` y `sessions` (fuente `usc` o
+  `synthetic`), consultable en `GET /api/sync/status`.
+- `data/usc_sync.csv`: CSV legacy normalizado.
+- `data/catalog.json`: catálogo que consume la API.
+
+El endpoint de la USC puede cambiar su token o su HTML. En ese caso el script
+registra el error y genera datos sintéticos para no dejar la aplicación sin
+horarios. Después de sincronizar hay que **reiniciar FastAPI** para recargar el
+catálogo.
+
+Ejemplo con extraescolar y grupo fijado:
+
+```json
+{
+  "year_id": "year-matematicas-1",
+  "pinned_group_ids": ["grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02"],
+  "custom_events": [
+    {"id":"evt-1","title":"Trabajo","day":"fri","start":"18:00","end":"20:00","location":"Oficina"}
+  ]
+}
 ```
 
 ## Modelo de datos
@@ -195,13 +255,16 @@ de UI. Las referencias son ids; los nombres viven en su propia entidad. El
 - **Sin cuentas ni profesores.** El enlace compartido es una instantánea, no un
   documento colaborativo. El modelo ya reserva `instructors` por sesión y
   `kind` por aula para futuras extensiones.
-- **Datos de ejemplo.** No se ha contrastado cada aula/edificio con la fuente
-  oficial. Para producción, conviene importar desde el calendario oficial y
-  validar aulas.
+- **Datos incluidos.** El catálogo por defecto es una foto estable de la semana
+  tipo para que los tests sean reproducibles. `scripts/sync_usc.py` permite
+  refrescarlo desde la USC o generar un fallback sintético en SQLite.
+- **Aulas y edificios.** No se ha contrastado cada aula con la fuente oficial;
+  el edificio se infiere del grado. La sincronización real mantiene las aulas
+  que publica la USC.
 
 ## Próximos pasos
 
-1. Importador directo desde la web de la USC (en lugar del CSV).
+1. Sincronización programada (cron) y avisos cuando cambie una clase.
 2. Plantillas oficiales de plan de estudios para cada grado y doble grado.
 3. Persistencia en SQLite/Postgres y cuentas de estudiante.
 4. Profesores y solicitudes de cambio de clase con aprobación.

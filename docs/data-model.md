@@ -255,6 +255,53 @@ paso sería añadir **plantillas de plan de estudios** (`programs`/`curricula`)
 que definan oficialmente qué asignaturas componen cada doble grado y en qué
 curso; la matrícula seguiría siendo la selección concreta del estudiante.
 
+## Bloques consecutivos
+
+Las sesiones se guardan como reuniones individuales (una fila del CSV puede ser
+`09:00-10:00` y otra `10:00-11:00`). La API calcula además una vista `blocks`
+que une sesiones **del mismo subject, grupo, tipo, día, aula y edificio** cuando
+son contiguas:
+
+```json
+{
+  "id": "blk-ses-aaa",
+  "session_ids": ["ses-aaa", "ses-bbb"],
+  "start": "09:00",
+  "end": "11:00",
+  "duration_minutes": 120,
+  "subject_name": "Cálculo numérico en una variable",
+  "group_code": "CLE02"
+}
+```
+
+La UI y el `.ics` usan `blocks`; `sessions` sigue conteniendo las reuniones
+originales para mover, validar huecos y conservar trazabilidad. Los bloques con
+varias sesiones se marcan como «bloque unido» y su movimiento ignora todos sus
+`session_ids`, no solo el primero.
+
+## Eventos extraescolares y horas fijadas
+
+Dos conceptos independientes del catálogo universitario viajan con cada
+validación, generación y enlace compartido:
+
+- **`custom_events`**: actividades semanales inventadas por el usuario. Se
+  modelan con `CustomEvent` (`id`, `title`, `day`, `start`, `end`, `location`,
+  `color`). Ocupan tiempo, por lo que restan huecos, generan
+  `event_conflicts` si pisan una clase y el solver las evita.
+- **`pinned_group_ids`**: grupos cuyas horas son inamovibles. El generador
+  preasigna esos grupos y no cambia su selección; el modo «mover» no ofrece
+  huecos para una clase fijada. Se fija a nivel de grupo porque el solver decide
+  grupos completos, no reuniones sueltas.
+
+```json
+{
+  "custom_events": [
+    {"id":"evt-1","title":"Entrenamiento","day":"mon","start":"18:00","end":"20:00","color":"#7c5cbf"}
+  ],
+  "pinned_group_ids": ["grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02"]
+}
+```
+
 ## Convenciones de ids
 
 | Entidad | Patrón | Ejemplo |
@@ -330,6 +377,12 @@ Un enlace compartido guarda una instantánea, no referencias mutables:
   "created_at": "2026-10-22T13:55:00+00:00",
   "title": "Matemáticas + Física · 3 materias",
   "year_id": null,
+  "custom_events": [
+    {"id":"evt-1","title":"Trabajo","day":"fri","start":"18:00","end":"20:00","color":"#7c5cbf"}
+  ],
+  "pinned_group_ids": [
+    "grp-matematicas-1-topologia-de-los-espacios-euclideos-cle02"
+  ],
   "subject_ids": [
     "sub-matematicas-1-topologia-de-los-espacios-euclideos",
     "sub-matematicas-2-geometria-lineal",

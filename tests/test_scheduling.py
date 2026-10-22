@@ -14,6 +14,7 @@ from backend.scheduling import (
     free_intervals,
     free_slots_for_groups,
     generate_schedule,
+    merge_session_views,
     validate_selection,
 )
 from backend.store import CatalogStore, SHARED_DIR
@@ -199,6 +200,107 @@ def test_validate_empty_plan_selection_reports_missing_groups() -> None:
     assert result["stats"]["total_sessions"] == 0
     assert {item["subject_id"] for item in result["missing"]} == {subject.id}
     assert len(result["missing"]) == len({group.type for group in store.group_by_id.values() if group.subject_id == subject.id})
+
+
+def test_merge_consecutive_session_views() -> None:
+    def view(session_id: str, start: str, end: str, room: str = "Aula 1") -> dict:
+        return {
+            "id": session_id,
+            "subject_id": "sub-x",
+            "subject_name": "Materia",
+            "group_id": "grp-x",
+            "group_code": "CLE01",
+            "group_type": "expositive",
+            "group_type_label": "Expositiva",
+            "day": "mon",
+            "day_label": "Lunes",
+            "start": start,
+            "end": end,
+            "duration_minutes": 60,
+            "room_id": f"room-{room}",
+            "room_name": room,
+            "building_id": "bld-x",
+            "building_name": "Edificio",
+            "has_conflict": False,
+            "conflict_with": [],
+        }
+
+    blocks = merge_session_views(
+        [view("a", "09:00", "10:00"), view("b", "10:00", "11:00"), view("c", "12:00", "13:00")]
+    )
+    assert len(blocks) == 2
+    assert blocks[0]["start"] == "09:00"
+    assert blocks[0]["end"] == "11:00"
+    assert blocks[0]["duration_minutes"] == 120
+    assert blocks[0]["session_ids"] == ["a", "b"]
+    assert blocks[1]["session_ids"] == ["c"]
+
+
+def test_custom_events_block_free_slots_and_are_reported() -> None:
+    subject = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    group = store.group_by_id[subject.group_ids[0]]
+    session = store.sessions_by_group[group.id][0]
+    event = {
+        "id": "evt-test",
+        "title": "Trabajo",
+        "day": session.day.value,
+        "start": session.start,
+        "end": session.end,
+        "location": "Oficina",
+        "color": "#7c5cbf",
+    }
+    result = validate_selection(store, [group.id], custom_events=[event])
+    assert result["event_conflicts"]
+    assert result["stats"]["event_conflict_count"] == len(result["event_conflicts"])
+    assert result["ok"] is False
+    assert all(
+        not (
+            slot["day"] == event["day"]
+            and slot["start"] <= event["start"]
+            and slot["end"] >= event["end"]
+        )
+        for slot in free_slots_for_groups(
+            store, [group.id], custom_events=[event], min_duration=30
+        )["slots"]
+    )
+
+
+def test_generator_avoids_custom_events() -> None:
+    event = {
+        "id": "evt-test",
+        "title": "Entrenamiento",
+        "day": "mon",
+        "start": "17:00",
+        "end": "19:00",
+        "color": "#7c5cbf",
+    }
+    result = generate_schedule(store, "year-matematicas-1", custom_events=[event])
+    assert result["stats"]["event_conflict_count"] == 0
+    for session in result["sessions"]:
+        assert not (
+            session["day"] == event["day"]
+            and session["start"] < event["end"]
+            and event["start"] < session["end"]
+        )
+
+
+def test_pinned_group_is_kept_by_generator() -> None:
+    subject = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    pinned = subject.group_ids[0]
+    result = generate_schedule(store, "year-matematicas-1", pinned_group_ids=[pinned])
+    assert pinned in result["group_ids"]
+    assert pinned in result["pinned_group_ids"]
+
+
+def test_pin_outside_plan_raises() -> None:
+    subject = store.subject_by_id[store.year_by_id["year-matematicas-1"].subject_ids[0]]
+    other = store.subject_by_id[store.year_by_id["year-matematicas-2"].subject_ids[0]]
+    with pytest.raises(ValueError, match="fuera de la matrícula"):
+        generate_schedule(
+            store,
+            subject_ids=[subject.id],
+            pinned_group_ids=[other.group_ids[0]],
+        )
 
 
 def test_validate_rejects_groups_outside_the_plan() -> None:

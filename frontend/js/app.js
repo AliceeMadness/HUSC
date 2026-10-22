@@ -32,6 +32,9 @@ const state = {
   yearId: null,
   planSubjectIds: [],
   planDraft: new Set(),
+  customEvents: [],
+  pinnedGroupIds: new Set(),
+  editingEventId: null,
   shareId: null,
   subjects: [],
   groupIndex: new Map(),
@@ -73,6 +76,17 @@ async function init() {
     changeYear: document.getElementById("change-year"),
     customPlan: document.getElementById("custom-plan"),
     editPlan: document.getElementById("edit-plan"),
+    addEventBtn: document.getElementById("add-event-btn"),
+    eventList: document.getElementById("event-list"),
+    eventDialog: document.getElementById("event-dialog"),
+    eventDialogTitle: document.getElementById("event-dialog-title"),
+    eventForm: document.getElementById("event-form"),
+    eventTitle: document.getElementById("event-title"),
+    eventDay: document.getElementById("event-day"),
+    eventStart: document.getElementById("event-start"),
+    eventEnd: document.getElementById("event-end"),
+    eventLocation: document.getElementById("event-location"),
+    eventDelete: document.getElementById("event-delete"),
     yearTitle: document.getElementById("year-title"),
     yearSubtitle: document.getElementById("year-subtitle"),
     autoBtn: document.getElementById("auto-btn"),
@@ -141,6 +155,8 @@ async function init() {
         await openPlan(ids, {
           groupIds: samePlan ? saved.groupIds ?? [] : [],
           autoResult: samePlan ? saved.autoResult ?? null : null,
+          customEvents: samePlan ? saved.customEvents ?? [] : undefined,
+          pinnedGroupIds: samePlan ? saved.pinnedGroupIds ?? [] : undefined,
           preserveSelection: false,
         });
         return;
@@ -152,6 +168,8 @@ async function init() {
       await openYear(requestedYear, {
         groupIds: samePlan ? saved.groupIds ?? [] : [],
         autoResult: samePlan ? saved.autoResult ?? null : null,
+        customEvents: samePlan ? saved.customEvents ?? [] : undefined,
+        pinnedGroupIds: samePlan ? saved.pinnedGroupIds ?? [] : undefined,
         preserveSelection: false,
       });
       return;
@@ -160,6 +178,8 @@ async function init() {
       await openPlan(saved.subjectIds, {
         groupIds: saved.groupIds ?? [],
         autoResult: saved.autoResult ?? null,
+        customEvents: saved.customEvents ?? [],
+        pinnedGroupIds: saved.pinnedGroupIds ?? [],
       });
       return;
     }
@@ -235,6 +255,10 @@ function readSaved() {
       groupIds: Array.isArray(parsed.groupIds)
         ? parsed.groupIds.filter((id) => typeof id === "string")
         : [],
+      customEvents: Array.isArray(parsed.customEvents) ? parsed.customEvents : [],
+      pinnedGroupIds: Array.isArray(parsed.pinnedGroupIds)
+        ? parsed.pinnedGroupIds.filter((id) => typeof id === "string")
+        : [],
       autoResult: auto,
     };
   } catch {
@@ -258,6 +282,8 @@ function saveLast() {
         planSubjectIds: state.planSubjectIds,
         yearId: state.yearId,
         groupIds: selectedGroupIds(),
+        customEvents: state.customEvents,
+        pinnedGroupIds: [...state.pinnedGroupIds],
         autoResult,
         savedAt: new Date().toISOString(),
       }),
@@ -293,6 +319,172 @@ function renderPrefs() {
   els.prefFriday.checked = state.prefs.noFriday;
   els.prefEarly.checked = state.prefs.noEarly;
   els.prefLate.checked = state.prefs.noLate;
+}
+
+function isTime(value) {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function safeEventColor(value) {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
+    ? value
+    : "#7c5cbf";
+}
+
+function normalizeIncomingEvents(events) {
+  return (Array.isArray(events) ? events : [])
+    .filter(
+      (event) =>
+        event &&
+        typeof event.id === "string" &&
+        typeof event.title === "string" &&
+        event.title.trim() &&
+        DAY_ORDER[event.day] !== undefined &&
+        isTime(event.start) &&
+        isTime(event.end) &&
+        toMinutes(event.end) > toMinutes(event.start),
+    )
+    .map((event) => ({
+      ...event,
+      color: safeEventColor(event.color),
+      kind: "extracurricular",
+    }))
+    .slice(0, 80);
+}
+
+function prunePins() {
+  const selected = new Set(selectedGroupIds());
+  state.pinnedGroupIds = new Set(
+    [...state.pinnedGroupIds].filter(
+      (groupId) => selected.has(groupId) && state.groupIndex.has(groupId),
+    ),
+  );
+}
+
+function isPinnedGroup(groupId) {
+  return state.pinnedGroupIds.has(groupId);
+}
+
+/* --------------------------------------------------------------------------
+   Extracurricular events
+   -------------------------------------------------------------------------- */
+
+function openEventDialog(eventId = null) {
+  const event = eventId
+    ? state.customEvents.find((item) => item.id === eventId)
+    : null;
+  state.editingEventId = event?.id ?? null;
+  els.eventDialogTitle.textContent = event ? "Editar extraescolar" : "Añadir extraescolar";
+  els.eventTitle.value = event?.title ?? "";
+  els.eventDay.value = event?.day ?? "mon";
+  els.eventStart.value = event?.start ?? "18:00";
+  els.eventEnd.value = event?.end ?? "20:00";
+  els.eventLocation.value = event?.location ?? "";
+  const color = safeEventColor(event?.color);
+  const colorInput = els.eventDialog.querySelector(
+    `input[name="event-color"][value="${color}"]`,
+  );
+  if (colorInput) colorInput.checked = true;
+  else els.eventDialog.querySelector('input[name="event-color"]').checked = true;
+  els.eventDelete.classList.toggle("hidden", !event);
+  els.eventDialog.showModal();
+  window.setTimeout(() => els.eventTitle.focus(), 50);
+}
+
+function saveEventForm(event) {
+  event.preventDefault();
+  const title = els.eventTitle.value.trim();
+  const start = els.eventStart.value;
+  const end = els.eventEnd.value;
+  if (!title) {
+    toast("Ponle un título a la extraescolar.", { type: "warn" });
+    return;
+  }
+  if (!isTime(start) || !isTime(end) || toMinutes(end) <= toMinutes(start)) {
+    toast("El horario de la extraescolar no es válido.", { type: "warn" });
+    return;
+  }
+  if (
+    toMinutes(start) < toMinutes(state.term.day_start) ||
+    toMinutes(end) > toMinutes(state.term.day_end)
+  ) {
+    toast(
+      `La extraescolar debe estar entre las ${state.term.day_start} y las ${state.term.day_end}.`,
+      { type: "warn" },
+    );
+    return;
+  }
+  const selectedColor = els.eventDialog.querySelector(
+    'input[name="event-color"]:checked',
+  );
+  const id =
+    state.editingEventId ||
+    `evt-${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+  const item = {
+    id,
+    title,
+    day: els.eventDay.value,
+    start,
+    end,
+    location: els.eventLocation.value.trim() || null,
+    color: safeEventColor(selectedColor?.value),
+    kind: "extracurricular",
+  };
+  const index = state.customEvents.findIndex((current) => current.id === id);
+  if (index === -1) state.customEvents.push(item);
+  else state.customEvents[index] = item;
+  state.customEvents.sort(
+    (a, b) => (DAY_ORDER[a.day] ?? 9) - (DAY_ORDER[b.day] ?? 9) || toMinutes(a.start) - toMinutes(b.start),
+  );
+  state.editingEventId = null;
+  els.eventDialog.close();
+  state.autoResult = null;
+  state.validation = null;
+  clearMove();
+  renderEverything();
+  saveLast();
+  scheduleValidation();
+  toast(index === -1 ? "Extraescolar añadida." : "Extraescolar actualizada.");
+}
+
+function deleteEditingEvent() {
+  if (!state.editingEventId) return;
+  state.customEvents = state.customEvents.filter(
+    (event) => event.id !== state.editingEventId,
+  );
+  state.editingEventId = null;
+  els.eventDialog.close();
+  state.autoResult = null;
+  state.validation = null;
+  clearMove();
+  renderEverything();
+  saveLast();
+  scheduleValidation();
+  toast("Extraescolar eliminada.");
+}
+
+function renderEventList() {
+  if (!state.customEvents.length) {
+    els.eventList.innerHTML = `
+      <div class="event-list-head"><span>Extraescolares</span><span>0</span></div>
+      <p class="event-empty">Añade entrenamientos, trabajo o academias para que el generador los respete.</p>`;
+    return;
+  }
+  const chips = state.customEvents
+    .map(
+      (event) => `
+      <button class="event-chip" type="button" data-event-id="${escapeHtml(event.id)}"
+        style="--event-color:${safeEventColor(event.color)}"
+        title="${escapeHtml(`${event.title} · ${DAY_LABELS[event.day]} ${event.start}–${event.end}${event.location ? ` · ${event.location}` : ""}`)}">
+        <span class="event-chip-dot" aria-hidden="true"></span>
+        <span>${escapeHtml(event.title)}</span>
+        <small>${escapeHtml(DAY_LABELS[event.day].slice(0, 3))} ${event.start}–${event.end}</small>
+      </button>`,
+    )
+    .join("");
+  els.eventList.innerHTML = `
+    <div class="event-list-head"><span>Extraescolares</span><span>${state.customEvents.length}</span></div>
+    <div class="event-chips">${chips}</div>`;
 }
 
 function blockedSlots() {
@@ -434,11 +626,24 @@ function bindEvents() {
   });
 
   els.timetable.addEventListener("click", (event) => {
+    const eventBlock = event.target.closest("[data-event-id]");
+    if (eventBlock) {
+      openEventDialog(eventBlock.dataset.eventId);
+      return;
+    }
     const block = event.target.closest("[data-session-id]");
     if (!block) return;
     const session = state.localSchedule.sessions.find((item) => item.id === block.dataset.sessionId);
     if (session) beginMove(session);
   });
+
+  els.addEventBtn.addEventListener("click", () => openEventDialog(null));
+  els.eventList.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-event-id]");
+    if (chip) openEventDialog(chip.dataset.eventId);
+  });
+  els.eventForm.addEventListener("submit", saveEventForm);
+  els.eventDelete.addEventListener("click", deleteEditingEvent);
 
   els.freeDuration.addEventListener("click", (event) => {
     const button = event.target.closest("[data-min]");
@@ -455,6 +660,10 @@ function bindEvents() {
   });
 
   els.movePanel.addEventListener("click", (event) => {
+    if (event.target.closest("#toggle-pin")) {
+      togglePin(state.moveSession?.group_id);
+      return;
+    }
     const candidate = event.target.closest("[data-candidate-start]");
     if (candidate) {
       state.previewCandidate = {
@@ -567,18 +776,45 @@ function showLanding() {
    Opening a plan (matrícula)
    -------------------------------------------------------------------------- */
 
-async function openYear(yearId, { groupIds = [], autoResult = null, preserveSelection = false } = {}) {
+async function openYear(
+  yearId,
+  {
+    groupIds = [],
+    autoResult = null,
+    customEvents = undefined,
+    pinnedGroupIds = undefined,
+    preserveSelection = false,
+  } = {},
+) {
   const ids = yearSubjectIds(yearId);
   if (!ids?.length) {
     const data = await api.planForYear(yearId);
-    return openPlan(data.subject_ids, { groupIds, autoResult, preserveSelection });
+    return openPlan(data.subject_ids, {
+      groupIds,
+      autoResult,
+      customEvents,
+      pinnedGroupIds,
+      preserveSelection,
+    });
   }
-  return openPlan(ids, { groupIds, autoResult, preserveSelection });
+  return openPlan(ids, {
+    groupIds,
+    autoResult,
+    customEvents,
+    pinnedGroupIds,
+    preserveSelection,
+  });
 }
 
 async function openPlan(
   subjectIds,
-  { groupIds = [], autoResult = null, preserveSelection = false } = {},
+  {
+    groupIds = [],
+    autoResult = null,
+    customEvents = undefined,
+    pinnedGroupIds = undefined,
+    preserveSelection = false,
+  } = {},
 ) {
   const ids = [...new Set(subjectIds)];
   if (!ids.length) throw new Error("Selecciona al menos una asignatura");
@@ -609,6 +845,9 @@ async function openPlan(
     }
   }
   for (const groupId of groupIds) setGroupSelection(groupId);
+  if (customEvents !== undefined) state.customEvents = normalizeIncomingEvents(customEvents);
+  if (pinnedGroupIds !== undefined) state.pinnedGroupIds = new Set(pinnedGroupIds);
+  prunePins();
 
   updatePlanHeader();
   els.yearChip.classList.remove("hidden");
@@ -880,6 +1119,7 @@ function selectedSubjectCount() {
 function onSelectionChanged() {
   state.validation = null;
   state.validationKey = null;
+  prunePins();
   clearMove();
   renderEverything();
   saveLast();
@@ -912,6 +1152,7 @@ async function refreshValidation() {
       group_ids: ids,
       subject_ids: state.planSubjectIds,
       blocked: blockedSlots(),
+      custom_events: state.customEvents,
       min_free_minutes: 30,
     });
     if (token !== state.validationToken) return;
@@ -931,8 +1172,67 @@ async function refreshValidation() {
    Schedule computation (client-side, instant)
    -------------------------------------------------------------------------- */
 
+function mergeLocalSessions(sessions) {
+  const groups = new Map();
+  for (const session of sessions) {
+    const key = [
+      session.subject_id,
+      session.group_id,
+      session.type,
+      session.day,
+      session.room_id,
+      session.building_id,
+    ].join("|");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(session);
+  }
+
+  const merged = [];
+  for (const groupSessions of groups.values()) {
+    groupSessions.sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+    let current = null;
+    for (const session of groupSessions) {
+      if (!current) {
+        current = {
+          ...session,
+          id: `blk-${session.id}`,
+          source_session_ids: [session.id],
+          has_conflict: false,
+          has_event_conflict: false,
+          conflict_with: [],
+        };
+        continue;
+      }
+      if (current.end === session.start) {
+        current.end = session.end;
+        current.duration_minutes += session.duration_minutes;
+        current.source_session_ids.push(session.id);
+        current.pinned = current.pinned || session.pinned;
+        current.has_pref_conflict = current.has_pref_conflict || session.has_pref_conflict;
+      } else {
+        merged.push(current);
+        current = {
+          ...session,
+          id: `blk-${session.id}`,
+          source_session_ids: [session.id],
+          has_conflict: false,
+          has_event_conflict: false,
+          conflict_with: [],
+        };
+      }
+    }
+    if (current) merged.push(current);
+  }
+  return merged.sort(
+    (a, b) =>
+      (DAY_ORDER[a.day] ?? 9) - (DAY_ORDER[b.day] ?? 9) ||
+      toMinutes(a.start) - toMinutes(b.start) ||
+      a.subject_name.localeCompare(b.subject_name, "es"),
+  );
+}
+
 function buildLocalSchedule() {
-  const sessions = [];
+  const rawSessions = [];
   const blocked = blockedSlots();
   for (const groupId of selectedGroupIds()) {
     const group = state.groupIndex.get(groupId);
@@ -944,20 +1244,16 @@ function buildLocalSchedule() {
           toMinutes(session.start) < toMinutes(slot.end) &&
           toMinutes(slot.start) < toMinutes(session.end),
       );
-      sessions.push({
+      rawSessions.push({
         ...session,
+        pinned: isPinnedGroup(groupId),
         has_conflict: false,
         has_pref_conflict: prefersConflict,
         conflict_with: [],
       });
     }
   }
-  sessions.sort(
-    (a, b) =>
-      (DAY_ORDER[a.day] ?? 9) - (DAY_ORDER[b.day] ?? 9) ||
-      toMinutes(a.start) - toMinutes(b.start) ||
-      a.subject_name.localeCompare(b.subject_name, "es"),
-  );
+  const sessions = mergeLocalSessions(rawSessions);
 
   const conflicts = [];
   for (let i = 0; i < sessions.length; i += 1) {
@@ -986,7 +1282,31 @@ function buildLocalSchedule() {
   conflicts.sort(
     (a, b) => (DAY_ORDER[a.day] ?? 9) - (DAY_ORDER[b.day] ?? 9) || toMinutes(a.start) - toMinutes(b.start),
   );
-  return { sessions, conflicts };
+
+  const eventConflicts = [];
+  for (const event of state.customEvents) {
+    for (const session of sessions) {
+      if (session.day !== event.day) continue;
+      const start = Math.max(toMinutes(session.start), toMinutes(event.start));
+      const end = Math.min(toMinutes(session.end), toMinutes(event.end));
+      if (start >= end) continue;
+      session.has_event_conflict = true;
+      eventConflicts.push({
+        event,
+        session,
+        day: event.day,
+        day_label: DAY_LABELS[event.day],
+        start: minutesToHm(start),
+        end: minutesToHm(end),
+        overlap_minutes: end - start,
+      });
+    }
+  }
+  eventConflicts.sort(
+    (a, b) => (DAY_ORDER[a.day] ?? 9) - (DAY_ORDER[b.day] ?? 9) || toMinutes(a.start) - toMinutes(b.start),
+  );
+
+  return { sessions, conflicts, eventConflicts };
 }
 
 function minutesToHm(minutes) {
@@ -1057,6 +1377,7 @@ function renderEverything() {
   renderStatus();
   renderAlerts();
   renderFreeSlots();
+  renderEventList();
   renderMovePanel();
 }
 
@@ -1082,11 +1403,13 @@ function renderSubjects() {
           const pills = groups
             .map((group) => {
               const selected = selection[type] === group.id;
+              const pinned = isPinnedGroup(group.id);
               const conflict = groupConflicts(group);
               const pref = groupHitsPreferences(group);
               const classes = [
                 "group-pill",
                 selected ? "is-selected" : "",
+                pinned ? "is-pinned" : "",
                 conflict ? "is-conflict" : "",
                 pref ? "is-pref-conflict" : "",
               ]
@@ -1100,6 +1423,7 @@ function renderSubjects() {
                 ),
                 conflict ? "Solapa con la selección actual" : "",
                 pref ? "Cae en una franja que querías evitar" : "",
+                pinned ? "Grupo fijado: el generador respetará sus horas" : "",
               ]
                 .filter(Boolean)
                 .join("\n");
@@ -1114,6 +1438,7 @@ function renderSubjects() {
                   aria-pressed="${selected}"
                 >
                   ${escapeHtml(group.code)}
+                  <span class="pill-pin" title="Fijado" aria-hidden="true">⚑</span>
                   <span class="pill-close" aria-hidden="true">×</span>
                 </button>`;
             })
@@ -1161,8 +1486,17 @@ function renderSchedule() {
   const schedule = buildLocalSchedule();
   state.localSchedule = schedule;
   const overlay = mergeCandidateRanges(state.moveCandidates);
+  const conflictEventIds = new Set(
+    schedule.eventConflicts.map((conflict) => conflict.event.id),
+  );
+  const events = state.customEvents.map((event) => ({
+    ...event,
+    color: safeEventColor(event.color),
+    has_event_conflict: conflictEventIds.has(event.id),
+  }));
   renderTimetable(els.timetable, {
     sessions: schedule.sessions,
+    events,
     term: state.term,
     candidateSlots: state.moveSession ? overlay : [],
     movingSessionId: state.moveSession?.id ?? null,
@@ -1171,7 +1505,7 @@ function renderSchedule() {
 }
 
 function renderStatus() {
-  const { sessions, conflicts } = state.localSchedule;
+  const { sessions, conflicts, eventConflicts } = state.localSchedule;
   const blocked = localBlockedConflicts(sessions);
   const missing = missingGroups();
   const groupCount = selectedCount();
@@ -1182,6 +1516,9 @@ function renderStatus() {
     if (conflicts.length) {
       label = plural(conflicts.length, "solape", "solapes");
       className = "status-pill is-danger";
+    } else if (eventConflicts.length) {
+      label = `${plural(eventConflicts.length, "cruce", "cruces")} con extraescolares`;
+      className = "status-pill is-warn";
     } else if (missing.length) {
       label = `${plural(missing.length, "grupo pendiente", "grupos pendientes")}`;
       className = "status-pill is-warn";
@@ -1233,7 +1570,7 @@ function missingGroups() {
 
 function renderAlerts() {
   const alerts = [];
-  const { conflicts, sessions } = state.localSchedule;
+  const { conflicts, sessions, eventConflicts } = state.localSchedule;
   const blocked = localBlockedConflicts(sessions);
   const missing = missingGroups();
 
@@ -1246,6 +1583,19 @@ function renderAlerts() {
       <div class="alert alert-danger">
         <span class="alert-icon">!</span>
         <div><strong>Hay ${plural(conflicts.length, "solape", "solapes")} en tu semana.</strong>
+        <ul>${items.join("")}</ul></div>
+      </div>`);
+  }
+
+  if (eventConflicts.length) {
+    const items = eventConflicts.slice(0, 4).map(
+      (conflict) =>
+        `<li>${escapeHtml(conflict.event.title)} × ${escapeHtml(conflict.session.subject_name)} · ${escapeHtml(conflict.day_label)} ${conflict.start}–${conflict.end}</li>`,
+    );
+    alerts.push(`
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚑</span>
+        <div><strong>Hay ${plural(eventConflicts.length, "cruce", "cruces")} con actividades extraescolares.</strong>
         <ul>${items.join("")}</ul></div>
       </div>`);
   }
@@ -1353,14 +1703,18 @@ function beginMove(session) {
   state.moveSession = session;
   state.previewCandidate = null;
   state.moveCandidates = [];
-  state.moveLoading = true;
+  state.moveLoading = false;
   renderSchedule();
   renderMovePanel();
   els.exitMove.classList.remove("hidden");
   if (window.innerWidth < 980) {
     els.moveCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
-  computeMoveCandidates(session);
+  if (!isPinnedGroup(session.group_id)) {
+    state.moveLoading = true;
+    renderMovePanel();
+    computeMoveCandidates(session);
+  }
 }
 
 function clearMove() {
@@ -1376,19 +1730,24 @@ async function computeMoveCandidates(session) {
   const token = ++state.moveToken;
   const ids = selectedGroupIds();
   if (!ids.includes(session.group_id)) ids.push(session.group_id);
+  const ignored = session.source_session_ids?.length
+    ? session.source_session_ids
+    : [session.id];
   try {
     const [personal, groupFree] = await Promise.all([
       api.freeSlots({
         group_ids: ids,
-        ignore_session_ids: [session.id],
+        ignore_session_ids: ignored,
         duration_minutes: session.duration_minutes,
         blocked: blockedSlots(),
+        custom_events: state.customEvents,
       }),
       api.freeSlots({
         group_ids: [session.group_id],
-        ignore_session_ids: [session.id],
+        ignore_session_ids: ignored,
         duration_minutes: session.duration_minutes,
         blocked: blockedSlots(),
+        custom_events: state.customEvents,
       }),
     ]);
     if (token !== state.moveToken || state.moveSession?.id !== session.id) return;
@@ -1499,12 +1858,21 @@ function renderMovePanel() {
       </div>
     </div>`;
 
+  const pinned = isPinnedGroup(session.group_id);
+  const pinButton = `<button class="btn ${pinned ? "btn-quiet" : "btn-ghost"}" type="button" id="toggle-pin">${pinned ? "Quitar fijación" : "Fijar grupo"}</button>`;
+  if (pinned) {
+    els.movePanel.innerHTML = `
+      ${header}
+      <div class="move-pinned"><span aria-hidden="true">⚑</span><span><strong>Grupo fijado.</strong> Sus horas no cambiarán al generar el horario y no se ofrecen huecos para moverlo.</span></div>
+      <div class="move-actions">${pinButton}</div>`;
+    return;
+  }
   if (state.moveLoading) {
-    els.movePanel.innerHTML = `${header}<p class="move-copy">Buscando huecos compatibles con el grupo y con tu semana…</p>`;
+    els.movePanel.innerHTML = `${header}<p class="move-copy">Buscando huecos compatibles con el grupo y con tu semana…</p><div class="move-actions">${pinButton}</div>`;
     return;
   }
   if (!state.moveCandidates.length) {
-    els.movePanel.innerHTML = `${header}<p class="move-copy">No hay ningún hueco compatible de ${formatDuration(session.duration_minutes)}. Prueba a desactivar alguna preferencia o a quitar otra clase.</p>`;
+    els.movePanel.innerHTML = `${header}<p class="move-copy">No hay ningún hueco compatible de ${formatDuration(session.duration_minutes)}. Prueba a desactivar alguna preferencia o a quitar otra clase.</p><div class="move-actions">${pinButton}</div>`;
     return;
   }
 
@@ -1528,7 +1896,38 @@ function renderMovePanel() {
     ${state.moveCandidates.length > visible.length ? `<p class="move-more">y ${state.moveCandidates.length - visible.length} más</p>` : ""}
     <div class="move-actions">
       <button class="btn btn-accent" type="button" id="copy-move">Copiar propuesta</button>
+      ${pinButton}
     </div>`;
+}
+
+function togglePin(groupId) {
+  if (!groupId) return;
+  if (state.pinnedGroupIds.has(groupId)) {
+    state.pinnedGroupIds.delete(groupId);
+    toast("Grupo desfijado.");
+  } else {
+    state.pinnedGroupIds.add(groupId);
+    toast("Grupo fijado: el generador mantendrá sus horas.");
+  }
+  prunePins();
+  const session = state.moveSession;
+  if (session && session.group_id === groupId) {
+    state.moveCandidates = [];
+    state.previewCandidate = null;
+    state.moveLoading = false;
+    state.moveToken += 1;
+    if (state.pinnedGroupIds.has(groupId)) {
+      renderMovePanel();
+    } else {
+      state.moveLoading = true;
+      renderMovePanel();
+      computeMoveCandidates(session);
+    }
+  }
+  renderSubjects();
+  renderSchedule();
+  renderStatus();
+  saveLast();
 }
 
 async function copyMoveProposal() {
@@ -1553,12 +1952,15 @@ async function generateTimetable() {
     const result = await api.generate({
       subject_ids: state.planSubjectIds,
       blocked: blockedSlots(),
+      custom_events: state.customEvents,
+      pinned_group_ids: [...state.pinnedGroupIds],
       allow_partial: true,
       allow_conflicts: true,
     });
     state.autoResult = result;
     state.selected = {};
     for (const groupId of result.group_ids || []) setGroupSelection(groupId);
+    prunePins();
     state.shareId = null;
     state.validation = result;
     state.validationKey = (result.group_ids || []).join(",");
@@ -1614,7 +2016,11 @@ async function loadShared(shareId) {
           ? yearSubjectIds(share.year_id) ?? []
           : [...new Set((share.selections || []).map((selection) => selection.subject_id))];
     if (!subjectIds.length) throw new Error("El enlace no contiene una matrícula válida");
-    await openPlan(subjectIds, { groupIds: share.group_ids });
+    await openPlan(subjectIds, {
+      groupIds: share.group_ids,
+      customEvents: share.custom_events ?? [],
+      pinnedGroupIds: share.pinned_group_ids ?? [],
+    });
     state.shareId = share.id;
     state.validation = response.validation;
     state.validationKey = (response.validation.group_ids || []).join(",");
@@ -1641,6 +2047,8 @@ async function shareSchedule() {
       subject_ids: state.planSubjectIds,
       title: planLabel(),
       group_ids: ids,
+      custom_events: state.customEvents,
+      pinned_group_ids: [...state.pinnedGroupIds],
     });
     const url = new URL(window.location.href);
     url.search = `?s=${encodeURIComponent(response.share.id)}`;
@@ -1670,6 +2078,8 @@ function downloadJson() {
     degree: data?.degrees?.length === 1 ? data.degrees[0] : null,
     year: data?.years?.length === 1 ? data.years[0] : null,
     group_ids: selectedGroupIds(),
+    pinned_group_ids: [...state.pinnedGroupIds],
+    custom_events: state.customEvents,
     selections: state.subjects
       .map((subject) => {
         const selection = state.selected[subject.id] || {};
@@ -1708,19 +2118,35 @@ function downloadJson() {
   toast("JSON descargado.");
 }
 
-function downloadIcs() {
+async function downloadIcs() {
   const ids = selectedGroupIds();
   if (!ids.length) return;
-  const url = new URL("/api/schedules/export.ics", window.location.origin);
-  url.searchParams.set("group_ids", ids.join(","));
-  url.searchParams.set("name", `Horario ${planChipLabel() || "USC"}`);
-  const anchor = document.createElement("a");
-  anchor.href = url.toString();
-  anchor.download = "horario.ics";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  toast("Calendario .ics descargado.");
+  try {
+    const response = await fetch("/api/schedules/export.ics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        group_ids: ids,
+        name: `Horario ${planChipLabel() || "USC"}`,
+        custom_events: state.customEvents,
+      }),
+    });
+    if (!response.ok) {
+      let detail = `Error ${response.status}`;
+      try {
+        const payload = await response.json();
+        if (typeof payload.detail === "string") detail = payload.detail;
+      } catch {
+        /* keep status */
+      }
+      throw new Error(detail);
+    }
+    const blob = await response.blob();
+    downloadBlob(blob, `horario-${slugify(planChipLabel() || "usc")}.ics`, "text/calendar");
+    toast("Calendario .ics descargado.");
+  } catch (error) {
+    toast(`No se pudo exportar el calendario: ${error.message}`, { type: "error" });
+  }
 }
 
 function slugify(value) {
@@ -1733,7 +2159,7 @@ function slugify(value) {
 }
 
 function downloadBlob(content, filename, type) {
-  const blob = new Blob([content], { type });
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

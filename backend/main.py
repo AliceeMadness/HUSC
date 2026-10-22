@@ -14,12 +14,11 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from . import __version__
 from .ids import slugify
-from .models import Catalog, Day
+from .models import Catalog, CustomEvent, Day
 from .scheduling import (
     free_slots_for_groups,
     generate_schedule,
     resolve_groups,
-    sessions_for_groups,
     validate_selection,
 )
 from .store import ROOT, store
@@ -77,6 +76,7 @@ class ValidateRequest(BaseModel):
     group_ids: list[str] = Field(default_factory=list, max_length=100)
     subject_ids: list[str] | None = Field(default=None, max_length=100)
     blocked: list[BlockedSlot] = Field(default_factory=list)
+    custom_events: list[CustomEvent] = Field(default_factory=list, max_length=80)
     min_free_minutes: int = Field(default=30, ge=0, le=600)
     day_start: str | None = None
     day_end: str | None = None
@@ -86,6 +86,8 @@ class GenerateRequest(BaseModel):
     year_id: str | None = None
     subject_ids: list[str] | None = Field(default=None, max_length=100)
     blocked: list[BlockedSlot] = Field(default_factory=list)
+    custom_events: list[CustomEvent] = Field(default_factory=list, max_length=80)
+    pinned_group_ids: list[str] = Field(default_factory=list, max_length=100)
     allow_partial: bool = True
     allow_conflicts: bool = True
     max_solutions: int = Field(default=60, ge=1, le=500)
@@ -102,6 +104,7 @@ class FreeSlotsRequest(BaseModel):
     group_ids: list[str] = Field(default_factory=list, max_length=100)
     ignore_session_ids: list[str] = Field(default_factory=list, max_length=100)
     blocked: list[BlockedSlot] = Field(default_factory=list)
+    custom_events: list[CustomEvent] = Field(default_factory=list, max_length=80)
     duration_minutes: int = Field(default=60, ge=5, le=600)
     day_start: str | None = None
     day_end: str | None = None
@@ -112,10 +115,22 @@ class ShareRequest(BaseModel):
     subject_ids: list[str] | None = Field(default=None, max_length=100)
     title: str | None = Field(default=None, max_length=120)
     group_ids: list[str] = Field(min_length=1, max_length=100)
+    custom_events: list[CustomEvent] = Field(default_factory=list, max_length=80)
+    pinned_group_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class ICSRequest(BaseModel):
+    group_ids: list[str] = Field(min_length=1, max_length=100)
+    name: str = Field(default="Horario", max_length=80)
+    custom_events: list[CustomEvent] = Field(default_factory=list, max_length=80)
 
 
 def _blocked(payload: list[BlockedSlot]) -> list[dict]:
     return [slot.as_dict() for slot in payload]
+
+
+def _events(payload: list[CustomEvent]) -> list[dict]:
+    return [event.model_dump(mode="json") for event in payload]
 
 
 def _window(day_start: str | None, day_end: str | None) -> tuple[str, str]:
@@ -174,6 +189,16 @@ def export_catalog() -> FileResponse:
 @app.get("/api/schema/catalog", tags=["catalogue"])
 def catalog_schema() -> dict:
     return Catalog.model_json_schema()
+
+
+@app.get("/api/sync/status", tags=["meta"])
+def sync_status() -> dict:
+    """Last live/synthetic USC snapshot, if `scripts/sync_usc.py` has run."""
+
+    from .usc_source import last_run
+
+    run = last_run()
+    return {"available": run is not None, "last_run": run}
 
 
 @app.get("/api/degrees", tags=["catalogue"])
@@ -237,6 +262,7 @@ def validate(payload: ValidateRequest) -> dict:
             day_start=day_start,
             day_end=day_end,
             subject_ids=payload.subject_ids,
+            custom_events=_events(payload.custom_events),
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -254,6 +280,8 @@ def generate(payload: GenerateRequest) -> dict:
             allow_conflicts=payload.allow_conflicts,
             max_solutions=payload.max_solutions,
             node_limit=payload.node_limit,
+            custom_events=_events(payload.custom_events),
+            pinned_group_ids=payload.pinned_group_ids,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Curso no encontrado: {payload.year_id}")
@@ -273,6 +301,7 @@ def free_slots(payload: FreeSlotsRequest) -> dict:
             day_start=day_start,
             day_end=day_end,
             min_duration=payload.duration_minutes,
+            custom_events=_events(payload.custom_events),
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -291,6 +320,8 @@ def share(payload: ShareRequest) -> dict:
             subject_ids=payload.subject_ids,
             title=payload.title,
             year_id=payload.year_id,
+            custom_events=_events(payload.custom_events),
+            pinned_group_ids=payload.pinned_group_ids,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Curso no encontrado: {payload.year_id}")
@@ -300,6 +331,7 @@ def share(payload: ShareRequest) -> dict:
         store,
         record.group_ids,
         subject_ids=record.subject_ids or None,
+        custom_events=[event.model_dump(mode="json") for event in record.custom_events],
     )
     return {
         "share": record.model_dump(mode="json"),
@@ -320,6 +352,9 @@ def shared(share_id: str) -> dict:
             store,
             record.group_ids,
             subject_ids=record.subject_ids or None,
+            custom_events=[
+                event.model_dump(mode="json") for event in record.custom_events
+            ],
         ),
     }
 
@@ -334,18 +369,17 @@ def _ics_escape(value: str) -> str:
     )
 
 
-@app.get("/api/schedules/export.ics", tags=["export"])
-def export_ics(
-    group_ids: str = Query(default="", description="ids de grupo separados por comas"),
-    name: str = Query(default="Horario", max_length=80),
-) -> Response:
-    ids = [item.strip() for item in group_ids.split(",") if item.strip()]
+def _build_ics(ids: list[str], name: str, custom_events: list[dict] | None = None) -> Response:
     try:
-        groups = resolve_groups(store, ids)
+        resolve_groups(store, ids)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
-    sessions = sessions_for_groups(store, groups)
+    validation = validate_selection(
+        store,
+        ids,
+        custom_events=custom_events or [],
+    )
     term = store.catalog.term
     today = date.today()
     next_monday = today + timedelta(days=((7 - today.weekday()) % 7) or 7)
@@ -360,34 +394,54 @@ def export_ics(
         f"X-WR-CALNAME:{_ics_escape(name)}",
         f"X-WR-TIMEZONE:{term.timezone}",
     ]
-    for session in sessions:
-        subject = store.subject_by_id[session.subject_id]
-        group = store.group_by_id[session.group_id]
-        room = store.room_by_id[session.room_id]
-        building = store.building_by_id[session.building_id]
-        event_day = next_monday + timedelta(days=WEEKDAY_INDEX[session.day.value])
-        start = session.start.replace(":", "")
-        end = session.end.replace(":", "")
+
+    # One VEVENT per merged visual block, not one per hourly fragment.
+    for block in validation["blocks"]:
+        event_day = next_monday + timedelta(days=WEEKDAY_INDEX[block["day"]])
+        start = block["start"].replace(":", "")
+        end = block["end"].replace(":", "")
+        location = f"{block['building_name']} · {block['room_name']}"
+        description = (
+            f"{block['group_type_label']} · grupo {block['group_code']} · "
+            f"{block['subject_name']}. "
+        )
+        if len(block.get("session_ids", [])) > 1:
+            description += f"Bloque unido de {len(block['session_ids'])} sesiones. "
+        description += "Generado con el constructor de horarios."
         lines.extend(
             [
                 "BEGIN:VEVENT",
-                f"UID:{session.id}@horario.usc",
+                f"UID:{block['id']}@horario.usc",
                 f"DTSTAMP:{stamp}",
                 f"DTSTART;TZID={term.timezone}:{event_day:%Y%m%d}T{start}00",
                 f"DTEND;TZID={term.timezone}:{event_day:%Y%m%d}T{end}00",
-                f"RRULE:FREQ=WEEKLY;COUNT={term.weeks};BYDAY={ICS_DAY[session.day.value]}",
-                f"SUMMARY:{_ics_escape(subject.name)} ({group.code})",
-                f"LOCATION:{_ics_escape(f'{building.name} · {room.name}')}",
-                (
-                    "DESCRIPTION:"
-                    + _ics_escape(
-                        f"{group.type_label} · grupo {group.code} · {subject.name}. "
-                        "Generado con el constructor de horarios."
-                    )
-                ),
+                f"RRULE:FREQ=WEEKLY;COUNT={term.weeks};BYDAY={ICS_DAY[block['day']]}",
+                f"SUMMARY:{_ics_escape(block['subject_name'])} ({block['group_code']})",
+                f"LOCATION:{_ics_escape(location)}",
+                f"DESCRIPTION:{_ics_escape(description)}",
                 "END:VEVENT",
             ]
         )
+
+    for event in validation.get("custom_events", []):
+        event_day = next_monday + timedelta(days=WEEKDAY_INDEX[event["day"]])
+        start = event["start"].replace(":", "")
+        end = event["end"].replace(":", "")
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f"UID:{_ics_escape(event['id'] or 'extra')}@horario.usc",
+                f"DTSTAMP:{stamp}",
+                f"DTSTART;TZID={term.timezone}:{event_day:%Y%m%d}T{start}00",
+                f"DTEND;TZID={term.timezone}:{event_day:%Y%m%d}T{end}00",
+                f"RRULE:FREQ=WEEKLY;COUNT={term.weeks};BYDAY={ICS_DAY[event['day']]}",
+                f"SUMMARY:{_ics_escape(event['title'])}",
+                f"LOCATION:{_ics_escape(event.get('location') or 'Extraescolar')}",
+                "DESCRIPTION:Actividad extraescolar semanal.",
+                "END:VEVENT",
+            ]
+        )
+
     lines.append("END:VCALENDAR")
     body = "\r\n".join(lines) + "\r\n"
     filename = f"{slugify(name)}.ics"
@@ -395,6 +449,24 @@ def export_ics(
         content=body,
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/schedules/export.ics", tags=["export"])
+def export_ics(
+    group_ids: str = Query(default="", description="ids de grupo separados por comas"),
+    name: str = Query(default="Horario", max_length=80),
+) -> Response:
+    ids = [item.strip() for item in group_ids.split(",") if item.strip()]
+    return _build_ics(ids, name)
+
+
+@app.post("/api/schedules/export.ics", tags=["export"])
+def export_ics_with_events(payload: ICSRequest) -> Response:
+    return _build_ics(
+        payload.group_ids,
+        payload.name,
+        custom_events=_events(payload.custom_events),
     )
 
 
