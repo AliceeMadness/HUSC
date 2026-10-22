@@ -136,6 +136,13 @@
           "title": "Building Id",
           "type": "string"
         },
+        "semester": {
+          "default": 1,
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Semester",
+          "type": "integer"
+        },
         "instructors": {
           "items": {
             "type": "string"
@@ -440,6 +447,13 @@
         "slug": {
           "title": "Slug",
           "type": "string"
+        },
+        "semester": {
+          "default": 1,
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Semester",
+          "type": "integer"
         },
         "group_ids": {
           "items": {

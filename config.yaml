@@ -5,9 +5,16 @@
 
 term:
   id: usc-2025-26-week-43
-  label: "Curso 2025/26 · semana 43"
+  label: "Curso 2025/26"
   academic_year: "2025/26"
   source_week: 43
+  # Semana tipo de cada cuatrimestre: sustituye el final "/<año>/<semana>" de
+  # cada URL.  Las URLs de abajo apuntan a la semana del primer cuatrimestre.
+  semesters:
+    - number: 1
+      week: "25/43"
+    - number: 2
+      week: "26/10"
   timezone: Europe/Madrid
   weeks: 15
 

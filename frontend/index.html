@@ -27,6 +27,9 @@
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
           <svg class="icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         </button>
+        <button class="icon-btn hidden" id="semester-toggle" type="button" aria-label="Cambiar a segundo cuatrimestre" title="Cambiar de cuatrimestre">
+          <span class="semester-label" id="semester-label">1C</span>
+        </button>
         <button class="btn btn-ghost hidden" id="share-btn" type="button">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8.6 13.7 15.4 17M15.4 7 8.6 10.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="6" cy="12" r="2.4" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="5.5" r="2.4" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="18.5" r="2.4" stroke="currentColor" stroke-width="1.7"/></svg>
           Compartir
@@ -130,21 +133,16 @@
               <span class="auto-kicker">Piloto automático</span>
               <span class="auto-spark" aria-hidden="true">✦</span>
             </div>
-            <h2>Que el horario se monte solo.</h2>
-            <p>Buscamos la combinación más compacta, sin solapes y esquivando las franjas que no quieras.</p>
-            <div class="pref-row" role="group" aria-label="Preferencias">
-              <label class="pref"><input type="checkbox" id="pref-no-friday"><span>Sin viernes</span></label>
-              <label class="pref"><input type="checkbox" id="pref-no-early"><span>Sin 8:00</span></label>
-              <label class="pref"><input type="checkbox" id="pref-no-late"><span>Sin 19:00+</span></label>
-            </div>
+            <h2>Arregla tu horario.</h2>
+            <p>Quitamos los solapes de tu horario cambiando los menos grupos posibles. Lo que no choca, se queda como está.</p>
             <button class="btn btn-accent btn-wide" id="auto-btn" type="button">
               <span class="btn-label">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5l1.5 4.4 4.5 1.6-4.5 1.6L12 15.5l-1.5-4.4L6 9.5l4.5-1.6L12 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" fill="currentColor"/></svg>
-                Generar horario
+                Resolver solapes
               </span>
               <span class="spinner hidden" aria-hidden="true"></span>
             </button>
-            <p class="auto-hint" id="auto-hint">Si hay optativas incompatibles, elegimos el mayor subconjunto posible.</p>
+            <p class="auto-hint" id="auto-hint">Los grupos fijados no se tocan.</p>
           </div>
 
           <div class="panel-section-head">

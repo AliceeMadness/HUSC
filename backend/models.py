@@ -122,6 +122,8 @@ class Subject(StrictModel):
     year_id: str
     name: str
     slug: str
+    # 1 = primer cuatrimestre, 2 = segundo.  Annual subjects appear once per term.
+    semester: int = Field(default=1, ge=1, le=2)
     group_ids: list[str] = Field(default_factory=list)
 
 
@@ -163,6 +165,8 @@ class ClassSession(StrictModel):
     duration_minutes: int = Field(gt=0)
     room_id: str
     building_id: str
+    # Copied from the subject: meetings of different terms never overlap.
+    semester: int = Field(default=1, ge=1, le=2)
     instructors: list[str] = Field(default_factory=list)
     weeks: Weeks | None = None
     note: str | None = None

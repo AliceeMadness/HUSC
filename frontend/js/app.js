@@ -21,8 +21,9 @@ const GROUP_TYPE_ORDER = { expositive: 0, laboratory: 1, seminar: 2, other: 3 };
 const DAY_LABELS = { mon: "Lunes", tue: "Martes", wed: "Miércoles", thu: "Jueves", fri: "Viernes" };
 const DAY_ORDER = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4 };
 const LS_LAST = "horario:last-v2";
-const LS_PREFS = "horario:prefs-v2";
 const LS_THEME = "horario:theme";
+const LS_SEMESTER = "horario:semester";
+const SEMESTER_NAMES = { 1: "primer cuatrimestre", 2: "segundo cuatrimestre" };
 
 const state = {
   meta: null,
@@ -41,7 +42,7 @@ const state = {
   allSessions: [],
   sessionById: new Map(),
   selected: {},
-  prefs: readPrefs(),
+  semester: readSemester(),
   minFree: 60,
   localSchedule: { sessions: [], conflicts: [] },
   validation: null,
@@ -71,6 +72,8 @@ async function init() {
     degreeGrid: document.getElementById("degree-grid"),
     yearChip: document.getElementById("year-chip"),
     themeToggle: document.getElementById("theme-toggle"),
+    semesterToggle: document.getElementById("semester-toggle"),
+    semesterLabel: document.getElementById("semester-label"),
     shareBtn: document.getElementById("share-btn"),
     brandLink: document.getElementById("brand-link"),
     changeYear: document.getElementById("change-year"),
@@ -91,9 +94,6 @@ async function init() {
     yearSubtitle: document.getElementById("year-subtitle"),
     autoBtn: document.getElementById("auto-btn"),
     autoHint: document.getElementById("auto-hint"),
-    prefFriday: document.getElementById("pref-no-friday"),
-    prefEarly: document.getElementById("pref-no-early"),
-    prefLate: document.getElementById("pref-no-late"),
     subjects: document.getElementById("subjects"),
     selectionCount: document.getElementById("selection-count"),
     conflictPill: document.getElementById("conflict-pill"),
@@ -126,8 +126,8 @@ async function init() {
     localStorage.getItem(LS_THEME) ||
     (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   applyTheme(preferredTheme, false);
+  renderSemesterToggle();
   bindEvents();
-  renderPrefs();
   updateFreeDurationButtons();
 
   try {
@@ -295,7 +295,7 @@ function saveLast() {
       JSON.stringify({
         planSubjectIds: state.planSubjectIds,
         yearId: state.yearId,
-        groupIds: selectedGroupIds(),
+        groupIds: allSelectedGroupIds(),
         customEvents: state.customEvents,
         pinnedGroupIds: [...state.pinnedGroupIds],
         autoResult,
@@ -305,34 +305,6 @@ function saveLast() {
   } catch {
     /* storage can be unavailable in private mode */
   }
-}
-
-function readPrefs() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(LS_PREFS) || "null");
-    return {
-      noFriday: Boolean(parsed?.noFriday),
-      noEarly: Boolean(parsed?.noEarly),
-      noLate: Boolean(parsed?.noLate),
-    };
-  } catch {
-    return { noFriday: false, noEarly: false, noLate: false };
-  }
-}
-
-function savePrefs() {
-  try {
-    localStorage.setItem(LS_PREFS, JSON.stringify(state.prefs));
-  } catch {
-    /* ignore */
-  }
-}
-
-function renderPrefs() {
-  if (!els.prefFriday) return;
-  els.prefFriday.checked = state.prefs.noFriday;
-  els.prefEarly.checked = state.prefs.noEarly;
-  els.prefLate.checked = state.prefs.noLate;
 }
 
 function isTime(value) {
@@ -367,7 +339,7 @@ function normalizeIncomingEvents(events) {
 }
 
 function prunePins() {
-  const selected = new Set(selectedGroupIds());
+  const selected = new Set(allSelectedGroupIds());
   state.pinnedGroupIds = new Set(
     [...state.pinnedGroupIds].filter(
       (groupId) => selected.has(groupId) && state.groupIndex.has(groupId),
@@ -501,18 +473,9 @@ function renderEventList() {
     <div class="event-chips">${chips}</div>`;
 }
 
+// Time-of-day preferences were removed from the UI; no slot is avoided.
 function blockedSlots() {
-  const start = state.term?.day_start ?? "08:00";
-  const end = state.term?.day_end ?? "21:00";
-  const slots = [];
-  if (state.prefs.noFriday) slots.push({ day: "fri", start, end });
-  if (state.prefs.noEarly && toMinutes(start) < 9 * 60) {
-    for (const day of DAYS) slots.push({ day, start, end: "09:00" });
-  }
-  if (state.prefs.noLate && toMinutes(end) > 19 * 60) {
-    for (const day of DAYS) slots.push({ day, start: "19:00", end });
-  }
-  return slots;
+  return [];
 }
 
 /* --------------------------------------------------------------------------
@@ -537,6 +500,44 @@ function applyTheme(theme, persist = true) {
 }
 
 /* --------------------------------------------------------------------------
+   Semester (cuatrimestre)
+   -------------------------------------------------------------------------- */
+
+function readSemester() {
+  try {
+    return localStorage.getItem(LS_SEMESTER) === "2" ? 2 : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function renderSemesterToggle() {
+  if (!els.semesterToggle) return;
+  const other = state.semester === 1 ? 2 : 1;
+  els.semesterLabel.textContent = `${state.semester}C`;
+  els.semesterToggle.setAttribute("aria-label", `Cambiar al ${SEMESTER_NAMES[other]}`);
+  els.semesterToggle.title = `Viendo el ${SEMESTER_NAMES[state.semester]}. Pulsa para ver el ${SEMESTER_NAMES[other]}.`;
+}
+
+function setSemester(semester, { announce = true } = {}) {
+  state.semester = semester === 2 ? 2 : 1;
+  try {
+    localStorage.setItem(LS_SEMESTER, String(state.semester));
+  } catch {
+    /* ignore */
+  }
+  renderSemesterToggle();
+  if (!state.planSubjectIds.length) return;
+  state.validation = null;
+  state.validationKey = null;
+  clearMove();
+  updatePlanHeader();
+  renderEverything();
+  scheduleValidation();
+  if (announce) toast(`Mostrando el ${SEMESTER_NAMES[state.semester]}.`);
+}
+
+/* --------------------------------------------------------------------------
    Events
    -------------------------------------------------------------------------- */
 
@@ -544,6 +545,7 @@ function bindEvents() {
   els.themeToggle.addEventListener("click", () => {
     applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
   });
+  els.semesterToggle.addEventListener("click", () => setSemester(state.semester === 1 ? 2 : 1));
 
   els.brandLink.addEventListener("click", (event) => {
     event.preventDefault();
@@ -599,29 +601,7 @@ function bindEvents() {
   });
   els.planApply.addEventListener("click", applyPlanDraft);
 
-  els.autoBtn.addEventListener("click", generateTimetable);
-
-  for (const [key, element] of [
-    ["noFriday", els.prefFriday],
-    ["noEarly", els.prefEarly],
-    ["noLate", els.prefLate],
-  ]) {
-    element.addEventListener("change", () => {
-      state.prefs[key] = element.checked;
-      savePrefs();
-      state.autoResult = null;
-      clearMove();
-      state.validation = null;
-      saveLast();
-      renderSubjects();
-      renderSchedule();
-      renderStatus();
-      renderAlerts();
-      renderFreeSlots();
-      renderMovePanel();
-      scheduleValidation();
-    });
-  }
+  els.autoBtn.addEventListener("click", optimizeTimetable);
 
   els.subjects.addEventListener("click", (event) => {
     const pill = event.target.closest("[data-group-id]");
@@ -766,6 +746,7 @@ function renderFatal(error) {
   els.workspace.classList.add("hidden");
   els.yearChip.classList.add("hidden");
   els.shareBtn.classList.add("hidden");
+  els.semesterToggle.classList.add("hidden");
   els.themeToggle.classList.remove("hidden");
   els.degreeGrid.innerHTML = `
     <article class="degree-card">
@@ -780,6 +761,7 @@ function showLanding() {
   els.workspace.classList.add("hidden");
   els.yearChip.classList.add("hidden");
   els.shareBtn.classList.add("hidden");
+  els.semesterToggle.classList.add("hidden");
   const url = new URL(window.location.href);
   url.search = "";
   window.history.replaceState({}, "", url);
@@ -863,13 +845,17 @@ async function openPlan(
   if (pinnedGroupIds !== undefined) state.pinnedGroupIds = new Set(pinnedGroupIds);
   prunePins();
 
+  // Land on a term that actually has subjects in this plan.
+  const semesters = new Set(state.subjects.map((subject) => subject.semester ?? 1));
+  if (!semesters.has(state.semester) && semesters.size) setSemester([...semesters][0], { announce: false });
+
   updatePlanHeader();
   els.yearChip.classList.remove("hidden");
   els.shareBtn.classList.remove("hidden");
   els.themeToggle.classList.remove("hidden");
+  els.semesterToggle.classList.remove("hidden");
   els.landing.classList.add("hidden");
   els.workspace.classList.remove("hidden");
-  renderPrefs();
   updatePlanUrl();
 
   renderEverything();
@@ -882,12 +868,13 @@ function updatePlanHeader() {
   const data = state.yearData;
   if (!data) return;
   const singleYear = data.years.length === 1 ? data.years[0] : null;
+  const termCount = semesterSubjects().length;
   if (singleYear) {
     els.yearTitle.textContent = singleYear.name;
-    els.yearSubtitle.textContent = `${singleYear.degree_name} · ${plural(data.subjects.length, "asignatura", "asignaturas")}`;
+    els.yearSubtitle.textContent = `${singleYear.degree_name} · ${plural(termCount, "asignatura", "asignaturas")} en el ${SEMESTER_NAMES[state.semester]}`;
   } else {
     els.yearTitle.textContent = "Mi matrícula";
-    els.yearSubtitle.textContent = `${plural(data.subjects.length, "materia", "materias")} · ${plural(data.years.length, "curso", "cursos")} · ${plural(data.degrees.length, "grado", "grados")}`;
+    els.yearSubtitle.textContent = `${plural(termCount, "materia", "materias")} en el ${SEMESTER_NAMES[state.semester]} · ${plural(data.years.length, "curso", "cursos")} · ${plural(data.degrees.length, "grado", "grados")}`;
   }
   els.yearChip.textContent = planChipLabel();
   els.yearChip.title = planLabel();
@@ -1001,7 +988,7 @@ function renderPlanOptions() {
               ${state.planDraft.has(subject.id) ? "checked" : ""}>
             <span>
               <strong>${escapeHtml(subject.name)}</strong>
-              <small>${plural(subject.group_count ?? 0, "grupo", "grupos")} · ${plural(subject.session_count ?? 0, "sesión", "sesiones")}</small>
+              <small>${subject.semester ?? 1}C · ${plural(subject.group_count ?? 0, "grupo", "grupos")} · ${plural(subject.session_count ?? 0, "sesión", "sesiones")}</small>
             </span>
           </label>`,
         )
@@ -1106,9 +1093,28 @@ function setGroupSelection(groupId) {
   state.selected[group.subject_id][group.type] = group.id;
 }
 
+function semesterSubjects() {
+  return state.subjects.filter((subject) => (subject.semester ?? 1) === state.semester);
+}
+
+function semesterSubjectIds() {
+  return semesterSubjects().map((subject) => subject.id);
+}
+
+// Groups of the term on screen; everything the timetable, validation and
+// overlap repair look at.
 function selectedGroupIds() {
+  return groupIdsFor(semesterSubjects());
+}
+
+// Groups of both terms; what is saved and shared.
+function allSelectedGroupIds() {
+  return groupIdsFor(state.subjects);
+}
+
+function groupIdsFor(subjects) {
   const ids = [];
-  for (const subject of state.subjects) {
+  for (const subject of subjects) {
     const selection = state.selected[subject.id];
     if (!selection) continue;
     for (const type of Object.keys(selection).sort((a, b) => (GROUP_TYPE_ORDER[a] ?? 9) - (GROUP_TYPE_ORDER[b] ?? 9))) {
@@ -1123,7 +1129,9 @@ function selectedCount() {
 }
 
 function selectedSubjectCount() {
-  return Object.values(state.selected).filter((selection) => Object.keys(selection).length).length;
+  return semesterSubjects().filter(
+    (subject) => Object.keys(state.selected[subject.id] || {}).length,
+  ).length;
 }
 
 /* --------------------------------------------------------------------------
@@ -1164,7 +1172,7 @@ async function refreshValidation() {
   try {
     const result = await api.validate({
       group_ids: ids,
-      subject_ids: state.planSubjectIds,
+      subject_ids: semesterSubjectIds(),
       blocked: blockedSlots(),
       custom_events: state.customEvents,
       min_free_minutes: 30,
@@ -1400,7 +1408,12 @@ function renderSubjects() {
   const scrollTop = els.subjects.scrollTop;
   const showOrigin =
     (state.yearData?.years?.length ?? 0) > 1 || (state.yearData?.degrees?.length ?? 0) > 1;
-  els.subjects.innerHTML = state.subjects
+  const subjects = semesterSubjects();
+  if (!subjects.length) {
+    els.subjects.innerHTML = `<p class="empty-copy">Tu matrícula no tiene asignaturas del ${SEMESTER_NAMES[state.semester]}. Cambia de cuatrimestre arriba o edita la matrícula.</p>`;
+    return;
+  }
+  els.subjects.innerHTML = subjects
     .map((subject) => {
       const selection = state.selected[subject.id] || {};
       const types = [...new Set(subject.groups.map((group) => group.type))].sort(
@@ -1568,7 +1581,7 @@ function missingGroups() {
       ? (state.autoResult.excluded_subjects || []).map((subject) => subject.id)
       : [],
   );
-  for (const subject of state.subjects) {
+  for (const subject of semesterSubjects()) {
     if (deliberatelyExcluded.has(subject.id)) continue;
     const selection = state.selected[subject.id] || {};
     const types = [...new Set(subject.groups.map((group) => group.type))];
@@ -1877,7 +1890,7 @@ function renderMovePanel() {
   if (pinned) {
     els.movePanel.innerHTML = `
       ${header}
-      <div class="move-pinned"><span aria-hidden="true">⚑</span><span><strong>Grupo fijado.</strong> Sus horas no cambiarán al generar el horario y no se ofrecen huecos para moverlo.</span></div>
+      <div class="move-pinned"><span aria-hidden="true">⚑</span><span><strong>Grupo fijado.</strong> Sus horas no cambiarán al resolver solapes y no se ofrecen huecos para moverlo.</span></div>
       <div class="move-actions">${pinButton}</div>`;
     return;
   }
@@ -1953,26 +1966,43 @@ async function copyMoveProposal() {
 }
 
 /* --------------------------------------------------------------------------
-   Automatic generation
+   Overlap repair
    -------------------------------------------------------------------------- */
 
-async function generateTimetable() {
+const AUTO_HINT = "Los grupos fijados no se tocan.";
+
+function describeChanges(changes) {
+  const moved = changes.filter((change) => change.from_group_id && change.to_group_id);
+  if (!moved.length) return "";
+  const sample = moved
+    .slice(0, 3)
+    .map((change) => `${change.subject_name} (${change.from_group_code} → ${change.to_group_code})`)
+    .join(", ");
+  return moved.length > 3 ? `${sample} y ${moved.length - 3} más` : sample;
+}
+
+async function optimizeTimetable() {
   if (!state.planSubjectIds.length) return;
   els.autoBtn.disabled = true;
   els.autoBtn.querySelector(".spinner").classList.remove("hidden");
   els.autoBtn.querySelector(".btn-label").style.opacity = "0.55";
-  els.autoHint.textContent = "Explorando combinaciones…";
+  els.autoHint.textContent = "Buscando el arreglo más pequeño…";
   try {
-    const result = await api.generate({
-      subject_ids: state.planSubjectIds,
+    const termIds = new Set(selectedGroupIds());
+    const result = await api.optimize({
+      subject_ids: semesterSubjectIds(),
+      group_ids: [...termIds],
       blocked: blockedSlots(),
       custom_events: state.customEvents,
-      pinned_group_ids: [...state.pinnedGroupIds],
-      allow_partial: true,
-      allow_conflicts: true,
+      pinned_group_ids: [...state.pinnedGroupIds].filter((groupId) => termIds.has(groupId)),
     });
-    state.autoResult = result;
-    state.selected = {};
+    if (result.status === "unchanged") {
+      toast("Tu horario no tiene solapes: no hay nada que cambiar.");
+      return;
+    }
+    state.autoResult = null;
+    // Only the visible term is replaced; the other keeps its groups.
+    for (const subjectId of semesterSubjectIds()) delete state.selected[subjectId];
     for (const groupId of result.group_ids || []) setGroupSelection(groupId);
     prunePins();
     state.shareId = null;
@@ -1988,30 +2018,35 @@ async function generateTimetable() {
     renderEverything();
     saveLast();
 
-    if (result.status === "optimal") {
-      toast(`Horario generado con ${plural(result.group_ids.length, "grupo", "grupos")} y sin solapes.`);
+    const changes = result.changes || [];
+    const changed = result.solver?.changed ?? 0;
+    const removed = result.solver?.removed ?? 0;
+    const detail = describeChanges(changes);
+    if (result.status === "optimized") {
+      const summary = changed
+        ? `Solapes resueltos cambiando ${plural(changed, "grupo", "grupos")}`
+        : "Horario completado sin solapes";
+      toast(detail ? `${summary}: ${detail}.` : `${summary}.`, { duration: 7000 });
     } else if (result.status === "partial") {
-      const total = result.requested_subject_ids?.length ?? 0;
-      const included = total - (result.excluded_subjects?.length ?? 0);
-      toast(`Horario generado con ${included} de ${total} materias. Las que no caben aparecen en el aviso.`, {
-        type: "warn",
-        duration: 6000,
-      });
-    } else if (result.status === "relaxed") {
-      toast("No hay una combinación perfecta con esas preferencias; revisa los solapes marcados.", {
-        type: "warn",
-        duration: 6000,
-      });
+      const dropped = changes
+        .filter((change) => change.from_group_id && !change.to_group_id)
+        .map((change) => `${change.subject_name} (${change.type_label})`)
+        .join(", ");
+      toast(
+        `No caben todos los grupos sin solapes: se han quitado ${plural(removed, "grupo", "grupos")} (${dropped})` +
+          (changed ? ` y cambiado ${plural(changed, "grupo", "grupos")}.` : "."),
+        { type: "warn", duration: 8000 },
+      );
     } else {
-      toast("No se encontró ninguna combinación posible.", { type: "error" });
+      toast("No se pudo quitar los solapes sin mover los grupos fijados.", { type: "error" });
     }
   } catch (error) {
-    toast(`No se pudo generar el horario: ${error.message}`, { type: "error" });
+    toast(`No se pudo resolver los solapes: ${error.message}`, { type: "error" });
   } finally {
     els.autoBtn.disabled = false;
     els.autoBtn.querySelector(".spinner").classList.add("hidden");
     els.autoBtn.querySelector(".btn-label").style.opacity = "1";
-    els.autoHint.textContent = "Si hay optativas incompatibles, elegimos el mayor subconjunto posible.";
+    els.autoHint.textContent = AUTO_HINT;
   }
 }
 
@@ -2036,8 +2071,6 @@ async function loadShared(shareId) {
       pinnedGroupIds: share.pinned_group_ids ?? [],
     });
     state.shareId = share.id;
-    state.validation = response.validation;
-    state.validationKey = (response.validation.group_ids || []).join(",");
     renderEverything();
     const url = new URL(window.location.href);
     url.search = `?s=${encodeURIComponent(share.id)}`;
@@ -2050,7 +2083,7 @@ async function loadShared(shareId) {
 }
 
 async function shareSchedule() {
-  const ids = selectedGroupIds();
+  const ids = allSelectedGroupIds();
   if (!ids.length) {
     toast("Elige algún grupo antes de compartir.", { type: "warn" });
     return;
@@ -2091,7 +2124,7 @@ function downloadJson() {
     },
     degree: data?.degrees?.length === 1 ? data.degrees[0] : null,
     year: data?.years?.length === 1 ? data.years[0] : null,
-    group_ids: selectedGroupIds(),
+    group_ids: allSelectedGroupIds(),
     pinned_group_ids: [...state.pinnedGroupIds],
     custom_events: state.customEvents,
     selections: state.subjects
@@ -2100,6 +2133,7 @@ function downloadJson() {
         return {
           subject_id: subject.id,
           subject_name: subject.name,
+          semester: subject.semester ?? 1,
           groups: Object.entries(selection).map(([type, groupId]) => {
             const group = state.groupIndex.get(groupId);
             return {

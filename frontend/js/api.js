@@ -38,6 +38,7 @@ export const api = {
   planForYear: (yearId) => request(`/api/plan?year_id=${encodeURIComponent(yearId)}`),
   validate: (payload) => request("/api/schedules/validate", { method: "POST", body: payload }),
   generate: (payload) => request("/api/schedules/generate", { method: "POST", body: payload }),
+  optimize: (payload) => request("/api/schedules/optimize", { method: "POST", body: payload }),
   freeSlots: (payload) => request("/api/free-slots", { method: "POST", body: payload }),
   share: (payload) => request("/api/schedules/share", { method: "POST", body: payload }),
   shared: (shareId) => request(`/api/shared/${encodeURIComponent(shareId)}`),

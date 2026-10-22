@@ -149,7 +149,7 @@ def test_year_view_is_json_ready(catalog: Catalog) -> None:
     store = CatalogStore()
     view = store.year_view("year-matematicas-1")
     assert view["year"]["id"] == "year-matematicas-1"
-    assert len(view["subjects"]) == 4
+    assert [s["semester"] for s in view["subjects"]] == [1] * 4 + [2] * 4
     json.dumps(view, ensure_ascii=False)  # must not raise
     first_session = view["subjects"][0]["groups"][0]["sessions"][0]
     assert {"day", "start", "end", "room_id", "building_id", "room_name"} <= first_session.keys()

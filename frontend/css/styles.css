@@ -189,6 +189,7 @@ svg { display: block; }
 .icon-btn:hover { background: var(--surface); color: var(--ink); transform: translateY(-1px); }
 .icon-btn svg { width: 18px; height: 18px; }
 .icon-btn-small { width: 33px; height: 33px; }
+.semester-label { font-size: 12px; font-weight: 750; letter-spacing: -0.02em; line-height: 1; }
 .icon-btn-small svg { width: 16px; height: 16px; }
 
 [data-theme="light"] .icon-moon { display: none; }
@@ -222,6 +223,7 @@ svg { display: block; }
 .btn-danger { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in oklab, var(--danger) 22%, transparent); }
 .btn-danger:hover { background: color-mix(in oklab, var(--danger) 16%, var(--surface)); }
 .btn-wide { width: 100%; min-height: 44px; font-size: 13.5px; }
+.btn-label { display: inline-flex; align-items: center; gap: 8px; }
 
 /* --------------------------------------------------------------------------
    Landing / hero
@@ -633,25 +635,8 @@ svg { display: block; }
   font-size: 11.5px;
   line-height: 1.5;
 }
-.pref-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 13px; }
-.pref { position: relative; display: inline-flex; }
-.pref input { position: absolute; opacity: 0; pointer-events: none; }
-.pref span {
-  display: inline-flex;
-  align-items: center;
-  height: 27px;
-  padding: 0 9px;
-  border: 1px solid rgba(242, 245, 234, 0.16);
-  border-radius: 999px;
-  color: rgba(242, 245, 234, 0.7);
-  font-size: 10.5px;
-  font-weight: 620;
-  cursor: pointer;
-  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
-}
-.pref input:focus-visible + span { outline: 2px solid var(--lime); outline-offset: 2px; }
-.pref input:checked + span { background: var(--lime); border-color: var(--lime); color: var(--lime-ink); }
 .auto-card .btn-accent { background: var(--lime); color: var(--lime-ink); box-shadow: none; }
+.auto-card .btn-wide { margin-top: 16px; }
 .auto-card .btn-accent:hover { background: #e4fb84; }
 .auto-hint { margin-top: 10px; color: rgba(242, 245, 234, 0.46) !important; font-size: 10px !important; }
 .spinner {

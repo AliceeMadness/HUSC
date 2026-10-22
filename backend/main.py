@@ -18,6 +18,7 @@ from .models import Catalog, CustomEvent, Day
 from .scheduling import (
     free_slots_for_groups,
     generate_schedule,
+    optimize_schedule,
     resolve_groups,
     validate_selection,
 )
@@ -44,6 +45,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def revalidate_frontend(request, call_next):
+    """Make browsers revalidate HTML/CSS/JS so edits show up on a normal reload."""
+
+    response = await call_next(request)
+    if not request.url.path.startswith("/api"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +109,16 @@ class GenerateRequest(BaseModel):
         if self.year_id is None and not self.subject_ids:
             raise ValueError("Indica year_id o una lista no vacía de subject_ids")
         return self
+
+
+class OptimizeRequest(BaseModel):
+    subject_ids: list[str] = Field(min_length=1, max_length=100)
+    group_ids: list[str] = Field(default_factory=list, max_length=100)
+    blocked: list[BlockedSlot] = Field(default_factory=list)
+    custom_events: list[CustomEvent] = Field(default_factory=list, max_length=80)
+    pinned_group_ids: list[str] = Field(default_factory=list, max_length=100)
+    max_solutions: int = Field(default=60, ge=1, le=500)
+    node_limit: int = Field(default=200_000, ge=1_000, le=2_000_000)
 
 
 class FreeSlotsRequest(BaseModel):
@@ -285,6 +306,23 @@ def generate(payload: GenerateRequest) -> dict:
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Curso no encontrado: {payload.year_id}")
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/api/schedules/optimize", tags=["scheduling"])
+def optimize(payload: OptimizeRequest) -> dict:
+    try:
+        return optimize_schedule(
+            store,
+            payload.group_ids,
+            payload.subject_ids,
+            blocked=_blocked(payload.blocked),
+            custom_events=_events(payload.custom_events),
+            pinned_group_ids=payload.pinned_group_ids,
+            max_solutions=payload.max_solutions,
+            node_limit=payload.node_limit,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

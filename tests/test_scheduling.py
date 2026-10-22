@@ -396,3 +396,20 @@ def test_plan_context_wins_over_year_inference_for_missing_groups() -> None:
         item["subject_id"] == store.year_by_id["year-matematicas-1"].subject_ids[1]
         for item in result["missing"]
     )
+
+
+def test_sessions_of_different_semesters_never_conflict() -> None:
+    year = store.year_by_id["year-matematicas-1"]
+    first = next(s for s in year.subject_ids if store.subject_by_id[s].semester == 1)
+    second = next(s for s in year.subject_ids if store.subject_by_id[s].semester == 2)
+    pairs = [
+        (a, b)
+        for a in store.subject_by_id[first].group_ids
+        for b in store.subject_by_id[second].group_ids
+        for sa in store.sessions_by_group[a]
+        for sb in store.sessions_by_group[b]
+        if sa.day == sb.day and sa.start == sb.start
+    ]
+    assert pairs, "the fixture needs a 1C and a 2C group meeting at the same time"
+    result = validate_selection(store, list(pairs[0]))
+    assert result["conflicts"] == []

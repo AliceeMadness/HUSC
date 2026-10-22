@@ -70,7 +70,9 @@ def test_degrees_and_year_view() -> None:
 
     year = client.get("/api/years/year-matematicas-1")
     assert year.status_code == 200
-    assert len(year.json()["subjects"]) == 4
+    subjects = year.json()["subjects"]
+    assert [s["semester"] for s in subjects].count(1) == 4
+    assert [s["semester"] for s in subjects].count(2) == 4
     assert year.json()["subjects"][0]["groups"][0]["sessions"]
 
 
@@ -80,7 +82,7 @@ def test_plan_can_mix_years_and_degrees() -> None:
 
     by_year = client.get("/api/plan", params={"year_id": "year-matematicas-1"})
     assert by_year.status_code == 200
-    assert len(by_year.json()["subjects"]) == 4
+    assert [s["semester"] for s in by_year.json()["subjects"]].count(1) == 4
 
     mixed = client.get("/api/plan", params={"subject_ids": f"{math},{physics}"})
     assert mixed.status_code == 200
@@ -402,3 +404,79 @@ def test_frontend_is_served() -> None:
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "Constructor de horarios" in response.text
+
+
+def _first_groups(year_id: str) -> list[str]:
+    result = []
+    for subject_id in store.year_by_id[year_id].subject_ids:
+        seen_types = set()
+        for group_id in store.subject_by_id[subject_id].group_ids:
+            group = store.group_by_id[group_id]
+            if group.type not in seen_types:
+                result.append(group_id)
+                seen_types.add(group.type)
+    return result
+
+
+def test_optimize_keeps_conflict_free_schedule() -> None:
+    group_ids = _first_year_groups()
+    response = client.post(
+        "/api/schedules/optimize",
+        json={
+            "subject_ids": store.year_by_id["year-matematicas-1"].subject_ids,
+            "group_ids": group_ids,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "unchanged"
+    assert set(payload["group_ids"]) == set(group_ids)
+    assert payload["changes"] == []
+
+
+def test_optimize_removes_overlaps_with_few_changes() -> None:
+    year_id = "year-matematicas-fisica-3"
+    group_ids = _first_groups(year_id)
+    response = client.post(
+        "/api/schedules/optimize",
+        json={"subject_ids": store.year_by_id[year_id].subject_ids, "group_ids": group_ids},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "optimized"
+    assert payload["conflicts"] == []
+    kept = set(group_ids) & set(payload["group_ids"])
+    assert len(kept) == len(group_ids) - payload["solver"]["changed"]
+    assert len(payload["changes"]) == payload["solver"]["changed"]
+
+
+def test_optimize_never_moves_pinned_groups() -> None:
+    year_id = "year-matematicas-fisica-3"
+    group_ids = _first_groups(year_id)
+    baseline = client.post(
+        "/api/schedules/optimize",
+        json={"subject_ids": store.year_by_id[year_id].subject_ids, "group_ids": group_ids},
+    ).json()
+    moved = baseline["changes"][0]["from_group_id"]
+    response = client.post(
+        "/api/schedules/optimize",
+        json={
+            "subject_ids": store.year_by_id[year_id].subject_ids,
+            "group_ids": group_ids,
+            "pinned_group_ids": [moved],
+        },
+    )
+    payload = response.json()
+    assert moved in payload["group_ids"]
+    assert payload["conflicts"] == []
+
+
+def test_optimize_rejects_groups_outside_plan() -> None:
+    response = client.post(
+        "/api/schedules/optimize",
+        json={
+            "subject_ids": store.year_by_id["year-matematicas-1"].subject_ids,
+            "group_ids": _first_groups("year-fisica-1")[:1],
+        },
+    )
+    assert response.status_code == 422

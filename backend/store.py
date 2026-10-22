@@ -85,6 +85,7 @@ class CatalogStore:
             "group_type_label": group.type_label,
             "day": session.day.value,
             "day_label": DAY_LABELS[session.day.value],
+            "semester": session.semester,
             "start": session.start,
             "end": session.end,
             "duration_minutes": session.duration_minutes,
@@ -120,6 +121,7 @@ class CatalogStore:
             "year_id": subject.year_id,
             "name": subject.name,
             "slug": subject.slug,
+            "semester": subject.semester,
             "groups": [self.group_view(group) for group in groups],
         }
 
@@ -222,6 +224,7 @@ class CatalogStore:
                                     "id": subject.id,
                                     "name": subject.name,
                                     "slug": subject.slug,
+                                    "semester": subject.semester,
                                     "group_count": len(subject.group_ids),
                                     "session_count": sum(
                                         len(self.sessions_by_group[group_id])

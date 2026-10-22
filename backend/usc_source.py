@@ -64,6 +64,23 @@ DAY_ABBR = {"mon": "L", "tue": "M", "wed": "X", "thu": "J", "fri": "V"}
 TIME_RE = re.compile(r"(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})")
 GROUP_RE = re.compile(r"Grupo\s*/\s*([A-Za-z0-9_]+)", re.IGNORECASE)
 ROOM_RE = re.compile(r"Aula\s+(.+)$", re.IGNORECASE)
+WEEK_PATH_RE = re.compile(r"/\d+/\d+(?=\?|$)")
+
+
+def semester_url(url: str, week: str | None) -> str:
+    """Point a widget URL at another ``<year>/<week>`` (e.g. ``26/10``)."""
+
+    if not week:
+        return url
+    return WEEK_PATH_RE.sub(f"/{week.strip('/')}", url, count=1)
+
+
+def configured_semesters(config: dict) -> list[dict]:
+    semesters = (config.get("term") or {}).get("semesters") or [{"number": 1}]
+    return [
+        {"number": int(item.get("number", 1)), "week": str(item.get("week") or "") or None}
+        for item in semesters
+    ]
 
 
 def _norm_text(value: str) -> str:
@@ -283,8 +300,11 @@ def write_legacy_csv(rows: list[dict], path: Path = CSV_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
-        writer.writerow(["Curso", "Slot", "Asignatura", "Grupo", "Aula", "Hora", "Edificio"])
-        for row in rows:
+        writer.writerow(
+            ["Curso", "Slot", "Asignatura", "Grupo", "Aula", "Hora", "Edificio", "Cuatrimestre"]
+        )
+        # First-semester rows go first so annual subjects keep their historical ids.
+        for row in sorted(rows, key=lambda item: item.get("semester", 1)):
             writer.writerow(
                 [
                     row["course"],
@@ -294,6 +314,7 @@ def write_legacy_csv(rows: list[dict], path: Path = CSV_PATH) -> None:
                     row["room"],
                     f"{row['start']}-{row['end']}",
                     row.get("building") or "",
+                    row.get("semester", 1),
                 ]
             )
 
@@ -366,6 +387,7 @@ def sync(
     timeout: float = 30.0,
 ) -> dict:
     config = load_config(config_path)
+    semesters = configured_semesters(config)
     forms = json.loads(forms_path.read_text(encoding="utf-8"))
     degrees = config.get("degrees") or []
     if not degrees:
@@ -403,21 +425,39 @@ def sync(
             sources = year.get("sources") or []
             course_rows: list[dict] = []
             source_errors: list[str] = []
+            later_rows: list[dict] = []
             if not force_synthetic:
-                for source in sources:
-                    url = (source.get("url") or "").strip()
-                    building = source.get("building") or default_building
-                    if not url:
-                        continue
-                    try:
-                        fetched = fetch_course(url, course_label, timeout=timeout)
-                        for row in fetched:
-                            row["course"] = course_label
-                            row["building"] = building
-                            row["source"] = "usc"
-                        course_rows.extend(fetched)
-                    except Exception as error:  # noqa: BLE001 - fallback per course
-                        source_errors.append(f"{type(error).__name__}: {error}")
+                for semester in semesters:
+                    semester_rows: list[dict] = []
+                    semester_errors: list[str] = []
+                    for source in sources:
+                        url = (source.get("url") or "").strip()
+                        building = source.get("building") or default_building
+                        if not url:
+                            continue
+                        try:
+                            fetched = fetch_course(
+                                semester_url(url, semester["week"]), course_label, timeout=timeout
+                            )
+                            for row in fetched:
+                                row["course"] = course_label
+                                row["building"] = building
+                                row["source"] = "usc"
+                                row["semester"] = semester["number"]
+                            semester_rows.extend(fetched)
+                        except Exception as error:  # noqa: BLE001 - fallback per course
+                            semester_errors.append(f"{type(error).__name__}: {error}")
+                    if semester["number"] == 1:
+                        course_rows, source_errors = semester_rows, semester_errors
+                    elif semester_errors:
+                        # Later terms are optional: without them the year simply
+                        # has no second-semester subjects.
+                        notes.append(
+                            f"{course_label}: {semester['number']}C no disponible "
+                            f"({'; '.join(semester_errors)})"
+                        )
+                    else:
+                        later_rows.extend(semester_rows)
 
             if force_synthetic or source_errors or not course_rows:
                 reason = "forzado" if force_synthetic else "sin fuente disponible"
@@ -438,6 +478,7 @@ def sync(
                 notes.append(f"{course_label}: sintético ({reason})")
             else:
                 live_courses += 1
+                course_rows.extend(later_rows)
                 notes.append(f"{course_label}: {len(course_rows)} sesiones desde la USC")
 
             rows.extend(course_rows)

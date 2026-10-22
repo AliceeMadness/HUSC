@@ -219,6 +219,8 @@ def import_files(
                 continue
             if not room_name:
                 room_name = "Sin aula"
+            semester_raw = (row.get("Cuatrimestre") or "1").strip()
+            semester = int(semester_raw) if semester_raw in {"1", "2"} else 1
 
             meta = course_map.get(course_label) if course_map else None
             if meta:
@@ -283,12 +285,18 @@ def import_files(
                 )
 
             subject_id = f"sub-{year_id.removeprefix('year-')}-{slugify(subject_name)}"
+            # An annual subject is taught in both terms; each term gets its own
+            # subject so its groups and sessions never mix.  Rows are written
+            # first-semester first, so the plain id keeps its historical meaning.
+            if subject_id in subjects and subjects[subject_id].semester != semester:
+                subject_id = f"{subject_id}-c{semester}"
             if subject_id not in subjects:
                 subjects[subject_id] = Subject(
                     id=subject_id,
                     year_id=year_id,
                     name=subject_name,
                     slug=slugify(subject_name),
+                    semester=semester,
                 )
 
             group_id = f"grp-{subject_id.removeprefix('sub-')}-{group_code.lower()}"
@@ -323,6 +331,7 @@ def import_files(
                 duration_minutes=duration_minutes(start, end),
                 room_id=room_id,
                 building_id=building_id,
+                semester=subjects[subject_id].semester,
                 weeks=None,
                 legacy=LegacyRef(slot=slot, row=row_number, source="horario.csv"),
             )
@@ -369,7 +378,7 @@ def import_files(
             position = ordered.index(subject.name)
         except ValueError:
             position = len(ordered)
-        return (year_order[subject.year_id], position, subject.name)
+        return (year_order[subject.year_id], subject.semester, position, subject.name)
 
     ordered_subjects = sorted(subjects.values(), key=subject_rank)
     for subject in ordered_subjects:

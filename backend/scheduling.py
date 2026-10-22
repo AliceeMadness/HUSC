@@ -8,6 +8,7 @@ weekly sessions overlap.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from .ids import natural_key
@@ -112,6 +113,7 @@ def sessions_for_groups(
 def _overlaps(a: ClassSession, b: ClassSession) -> bool:
     return (
         a.day == b.day
+        and a.semester == b.semester
         and _minutes(a.start) < _minutes(b.end)
         and _minutes(b.start) < _minutes(a.end)
     )
@@ -132,6 +134,11 @@ def find_conflicts(views: list[dict]) -> list[dict]:
     for index, first in enumerate(views):
         for second in views[index + 1 :]:
             if first["day"] != second["day"]:
+                continue
+            if first.get("semester", 1) != second.get("semester", 1):
+                continue
+            # A group meeting in two rooms at once is one class, not a clash.
+            if first.get("group_id") and first.get("group_id") == second.get("group_id"):
                 continue
             first_start, first_end = _minutes(first["start"]), _minutes(first["end"])
             second_start, second_end = _minutes(second["start"]), _minutes(second["end"])
@@ -534,7 +541,7 @@ def _quality(store: CatalogStore, groups: list[Group], blocked: list[dict]) -> t
     conflict_minutes = 0
     for index, first in enumerate(sessions):
         for second in sessions[index + 1 :]:
-            if _overlaps(first, second):
+            if first.group_id != second.group_id and _overlaps(first, second):
                 conflict_pairs += 1
                 first_start, first_end = _minutes(first.start), _minutes(first.end)
                 second_start, second_end = _minutes(second.start), _minutes(second.end)
@@ -1041,6 +1048,250 @@ def generate_schedule(
         for index, variable in enumerate(variables)
         if index < len(groups)
     ] if groups else []
+    return result
+
+
+def _repair_solution(
+    store: CatalogStore,
+    variables: list[Variable],
+    current: dict[tuple[str, GroupType], str],
+    pinned_keys: set[tuple[str, GroupType]],
+    hard_blocked: list[dict],
+    soft_blocked: list[dict],
+    max_solutions: int,
+    node_limit: int,
+    time_limit: float = 4.0,
+) -> tuple[list[Group | None] | None, dict]:
+    """Remove overlaps while touching as few of the user's groups as possible.
+
+    Each variable may keep its current group, switch to another group or, as
+    a last resort, be left empty.  Cost is lexicographic: groups removed,
+    then groups changed, then unselected slots left empty.  Among the
+    cheapest repairs, the one with fewest preference hits and best compactness
+    wins.  Branch and bound with an admissible lower bound keeps it fast.
+    """
+
+    if not variables:
+        return [], {"nodes": 0, "solutions_found": 0, "node_limit": node_limit, "exhausted": True}
+
+    # Pairwise group clashes are precomputed so each search step is a set test.
+    all_groups = list({group.id: group for var in variables for group in var.groups}.values())
+    blocked_ids = {
+        group.id
+        for group in all_groups
+        if any(_overlaps_blocked(session, hard_blocked) for session in store.sessions_by_group[group.id])
+    }
+    clashes: dict[str, set[str]] = {group.id: set() for group in all_groups}
+    for index, first in enumerate(all_groups):
+        for second in all_groups[index + 1 :]:
+            if any(
+                _overlaps(a, b)
+                for a in store.sessions_by_group[first.id]
+                for b in store.sessions_by_group[second.id]
+            ):
+                clashes[first.id].add(second.id)
+                clashes[second.id].add(first.id)
+
+    def can_place(group: Group, used: set[str]) -> bool:
+        return group.id not in blocked_ids and not (clashes[group.id] & used)
+
+    def option_cost(variable: Variable, group: Group | None) -> tuple[int, int, int]:
+        chosen = current.get(variable.key)
+        if group is None:
+            return (1, 0, 0) if chosen else (0, 0, 1)
+        if chosen and chosen != group.id:
+            return (0, 1, 0)
+        return (0, 0, 0)
+
+    def add(a: tuple[int, int, int], b: tuple[int, int, int]) -> tuple[int, int, int]:
+        return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+    def lower_bound(remaining: list[int], used: set[str]) -> tuple[int, int, int]:
+        bound = (0, 0, 0)
+        for index in remaining:
+            variable = variables[index]
+            chosen = current.get(variable.key)
+            placeable = [group for group in variable.groups if can_place(group, used)]
+            if not placeable:
+                bound = add(bound, option_cost(variable, None))
+            elif chosen and chosen not in {group.id for group in placeable}:
+                bound = add(bound, (0, 1, 0))
+        return bound
+
+    # Fail-first: variables with fewer alternatives are decided first.
+    order = sorted(range(len(variables)), key=lambda index: (len(variables[index].groups), index))
+    candidates: dict[int, list[Group | None]] = {}
+    for index, variable in enumerate(variables):
+        chosen = current.get(variable.key)
+        ranked: list[Group | None] = sorted(
+            variable.groups,
+            key=lambda group: (
+                group.id != chosen,
+                _quality(store, [group], soft_blocked),
+                natural_key(group.code),
+            ),
+        )
+        # Pinned groups are never dropped; every other slot may stay empty.
+        candidates[index] = ranked if variable.key in pinned_keys else [*ranked, None]
+
+    assignment: dict[int, Group | None] = {}
+    used: set[str] = set()
+    best_cost: tuple[int, int, int] | None = None
+    solutions: list[list[Group | None]] = []
+    nodes = 0
+    exhausted = True
+    deadline = time.monotonic() + time_limit
+
+    def dfs(position: int, cost: tuple[int, int, int]) -> None:
+        nonlocal nodes, exhausted, best_cost, solutions
+        if nodes >= node_limit or (nodes % 256 == 0 and time.monotonic() > deadline):
+            exhausted = False
+            return
+        if position == len(order):
+            if best_cost is None or cost < best_cost:
+                best_cost, solutions = cost, []
+            if len(solutions) < max_solutions:
+                solutions.append([assignment[index] for index in range(len(variables))])
+            return
+
+        variable_index = order[position]
+        variable = variables[variable_index]
+        for group in candidates[variable_index]:
+            nodes += 1
+            if nodes >= node_limit:
+                exhausted = False
+                return
+            if group is not None and not can_place(group, used):
+                continue
+            next_cost = add(cost, option_cost(variable, group))
+            if best_cost is not None and next_cost > best_cost:
+                continue
+            assignment[variable_index] = group
+            if group is not None:
+                used.add(group.id)
+            bound = add(next_cost, lower_bound(order[position + 1 :], used))
+            if best_cost is None or bound < best_cost or (
+                bound == best_cost and len(solutions) < max_solutions
+            ):
+                dfs(position + 1, next_cost)
+            if group is not None:
+                used.discard(group.id)
+            del assignment[variable_index]
+            if not exhausted:
+                return
+
+    dfs(0, (0, 0, 0))
+
+    meta = {
+        "nodes": nodes,
+        "solutions_found": len(solutions),
+        "node_limit": node_limit,
+        "max_solutions": max_solutions,
+        "time_limit": time_limit,
+        "exhausted": exhausted,
+    }
+    if not solutions or best_cost is None:
+        return None, meta
+    best = min(
+        solutions,
+        key=lambda groups: _quality(store, [group for group in groups if group], soft_blocked),
+    )
+    removed, changed, unfilled = best_cost
+    meta.update({"removed": removed, "changed": changed, "unfilled": unfilled})
+    return best, meta
+
+
+def optimize_schedule(
+    store: CatalogStore,
+    group_ids: list[str],
+    subject_ids: list[str],
+    blocked: list[dict] | None = None,
+    custom_events: list[dict] | None = None,
+    pinned_group_ids: list[str] | None = None,
+    max_solutions: int = 60,
+    node_limit: int = 200_000,
+) -> dict:
+    """Repair the user's own timetable instead of generating a new one.
+
+    Overlaps between classes and with custom events are removed by changing
+    the fewest possible groups; everything that does not clash stays as the
+    user left it.  ``blocked`` preferences only break ties between repairs.
+    """
+
+    blocked_norm = normalize_blocked(blocked)
+    events_norm = normalize_events(custom_events)
+    pinned = list(dict.fromkeys(pinned_group_ids or []))
+    requested = list(dict.fromkeys(subject_ids))
+    groups_now = resolve_groups(store, list(dict.fromkeys(group_ids)))
+
+    current: dict[tuple[str, GroupType], str] = {}
+    for group in groups_now:
+        if group.subject_id not in requested:
+            raise ValueError(f"El grupo {group.code} no pertenece a ninguna materia de la matrícula")
+        current[(group.subject_id, group.type)] = group.id
+
+    variables = _apply_pins(store, _build_variables(store, requested), pinned)
+    pinned_keys = {
+        (store.group_by_id[group_id].subject_id, store.group_by_id[group_id].type)
+        for group_id in pinned
+    }
+    repaired, meta = _repair_solution(
+        store,
+        variables,
+        current,
+        pinned_keys,
+        events_norm,
+        blocked_norm,
+        max_solutions,
+        node_limit,
+    )
+
+    if repaired is None:
+        status = "impossible"
+        final_ids = [group.id for group in groups_now]
+    else:
+        final_ids = [group.id for group in repaired if group is not None]
+        if meta.get("removed"):
+            status = "partial"
+        elif set(final_ids) == set(current.values()):
+            status = "unchanged"
+        else:
+            status = "optimized"
+
+    result = validate_selection(
+        store,
+        final_ids,
+        blocked=blocked_norm,
+        day_start=store.catalog.term.day_start,
+        day_end=store.catalog.term.day_end,
+        subject_ids=requested,
+        custom_events=events_norm,
+    )
+    final_set = set(final_ids)
+    changes = []
+    for variable in variables:
+        before = current.get(variable.key)
+        after = next((group.id for group in variable.groups if group.id in final_set), None)
+        if before == after:
+            continue
+        changes.append(
+            {
+                "subject_id": variable.subject_id,
+                "subject_name": store.subject_by_id[variable.subject_id].name,
+                "type": variable.type.value,
+                "type_label": GROUP_TYPE_LABELS[variable.type],
+                "from_group_id": before,
+                "from_group_code": store.group_by_id[before].code if before else None,
+                "to_group_id": after,
+                "to_group_code": store.group_by_id[after].code if after else None,
+            }
+        )
+    result["status"] = status
+    result["solver"] = {"status": status, **meta}
+    result["pinned_group_ids"] = pinned
+    result["requested_subject_ids"] = requested
+    result["group_ids"] = final_ids
+    result["changes"] = changes
     return result
 
 
