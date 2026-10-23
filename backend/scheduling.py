@@ -1054,8 +1054,8 @@ def generate_schedule(
 def _repair_solution(
     store: CatalogStore,
     variables: list[Variable],
-    current: dict[tuple[str, GroupType], str],
-    pinned_keys: set[tuple[str, GroupType]],
+    current: list[str | None],
+    pinned_indices: set[int],
     hard_blocked: list[dict],
     soft_blocked: list[dict],
     max_solutions: int,
@@ -1063,6 +1063,11 @@ def _repair_solution(
     time_limit: float = 4.0,
 ) -> tuple[list[Group | None] | None, dict]:
     """Remove overlaps while touching as few of the user's groups as possible.
+
+    ``current[i]`` is the group the user has in variable ``i`` (or ``None``).
+    A subject may have several variables of the same type when the user
+    chose several of its groups (a lecturer teaching CLE01 and CLE02); a
+    group can then fill only one of them.
 
     Each variable may keep its current group, switch to another group or, as
     a last resort, be left empty.  Cost is lexicographic: groups removed,
@@ -1093,10 +1098,14 @@ def _repair_solution(
                 clashes[second.id].add(first.id)
 
     def can_place(group: Group, used: set[str]) -> bool:
-        return group.id not in blocked_ids and not (clashes[group.id] & used)
+        return (
+            group.id not in blocked_ids
+            and group.id not in used
+            and not (clashes[group.id] & used)
+        )
 
-    def option_cost(variable: Variable, group: Group | None) -> tuple[int, int, int]:
-        chosen = current.get(variable.key)
+    def option_cost(index: int, group: Group | None) -> tuple[int, int, int]:
+        chosen = current[index]
         if group is None:
             return (1, 0, 0) if chosen else (0, 0, 1)
         if chosen and chosen != group.id:
@@ -1110,10 +1119,10 @@ def _repair_solution(
         bound = (0, 0, 0)
         for index in remaining:
             variable = variables[index]
-            chosen = current.get(variable.key)
+            chosen = current[index]
             placeable = [group for group in variable.groups if can_place(group, used)]
             if not placeable:
-                bound = add(bound, option_cost(variable, None))
+                bound = add(bound, option_cost(index, None))
             elif chosen and chosen not in {group.id for group in placeable}:
                 bound = add(bound, (0, 1, 0))
         return bound
@@ -1122,7 +1131,7 @@ def _repair_solution(
     order = sorted(range(len(variables)), key=lambda index: (len(variables[index].groups), index))
     candidates: dict[int, list[Group | None]] = {}
     for index, variable in enumerate(variables):
-        chosen = current.get(variable.key)
+        chosen = current[index]
         ranked: list[Group | None] = sorted(
             variable.groups,
             key=lambda group: (
@@ -1132,7 +1141,7 @@ def _repair_solution(
             ),
         )
         # Pinned groups are never dropped; every other slot may stay empty.
-        candidates[index] = ranked if variable.key in pinned_keys else [*ranked, None]
+        candidates[index] = ranked if index in pinned_indices else [*ranked, None]
 
     assignment: dict[int, Group | None] = {}
     used: set[str] = set()
@@ -1155,7 +1164,6 @@ def _repair_solution(
             return
 
         variable_index = order[position]
-        variable = variables[variable_index]
         for group in candidates[variable_index]:
             nodes += 1
             if nodes >= node_limit:
@@ -1163,7 +1171,7 @@ def _repair_solution(
                 return
             if group is not None and not can_place(group, used):
                 continue
-            next_cost = add(cost, option_cost(variable, group))
+            next_cost = add(cost, option_cost(variable_index, group))
             if best_cost is not None and next_cost > best_cost:
                 continue
             assignment[variable_index] = group
@@ -1224,22 +1232,49 @@ def optimize_schedule(
     requested = list(dict.fromkeys(subject_ids))
     groups_now = resolve_groups(store, list(dict.fromkeys(group_ids)))
 
-    current: dict[tuple[str, GroupType], str] = {}
+    for group_id in pinned:
+        if group_id not in store.group_by_id:
+            raise ValueError(f"Grupo fijado desconocido: {group_id}")
+    # A pinned group is always part of the timetable, even if the client did
+    # not send it among the selected groups.
+    groups_now += [
+        store.group_by_id[group_id]
+        for group_id in pinned
+        if group_id not in {group.id for group in groups_now}
+    ]
     for group in groups_now:
         if group.subject_id not in requested:
             raise ValueError(f"El grupo {group.code} no pertenece a ninguna materia de la matrícula")
-        current[(group.subject_id, group.type)] = group.id
 
-    variables = _apply_pins(store, _build_variables(store, requested), pinned)
-    pinned_keys = {
-        (store.group_by_id[group_id].subject_id, store.group_by_id[group_id].type)
-        for group_id in pinned
-    }
+    # One variable per selected group, so CLE01 + CLE02 of the same subject
+    # are two classes to keep, not one slot where the last pick wins.  A
+    # subject type with nothing selected still gets one empty variable.
+    variables: list[Variable] = []
+    current: list[str | None] = []
+    pinned_indices: set[int] = set()
+    pinned_set = set(pinned)
+    for base in _build_variables(store, requested):
+        chosen = [
+            group for group in groups_now
+            if group.subject_id == base.subject_id and group.type == base.type
+        ]
+        if not chosen:
+            variables.append(base)
+            current.append(None)
+            continue
+        for group in chosen:
+            if group.id in pinned_set:
+                pinned_indices.add(len(variables))
+                variables.append(Variable(base.subject_id, base.type, [group]))
+            else:
+                variables.append(base)
+            current.append(group.id)
+
     repaired, meta = _repair_solution(
         store,
         variables,
         current,
-        pinned_keys,
+        pinned_indices,
         events_norm,
         blocked_norm,
         max_solutions,
@@ -1253,7 +1288,7 @@ def optimize_schedule(
         final_ids = [group.id for group in repaired if group is not None]
         if meta.get("removed"):
             status = "partial"
-        elif set(final_ids) == set(current.values()):
+        elif set(final_ids) == {group_id for group_id in current if group_id}:
             status = "unchanged"
         else:
             status = "optimized"
@@ -1267,11 +1302,10 @@ def optimize_schedule(
         subject_ids=requested,
         custom_events=events_norm,
     )
-    final_set = set(final_ids)
     changes = []
-    for variable in variables:
-        before = current.get(variable.key)
-        after = next((group.id for group in variable.groups if group.id in final_set), None)
+    for index, variable in enumerate(variables):
+        before = current[index]
+        after = before if repaired is None else (repaired[index].id if repaired[index] else None)
         if before == after:
             continue
         changes.append(

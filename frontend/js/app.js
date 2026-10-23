@@ -582,6 +582,10 @@ function bindEvents() {
     if (!input) return;
     if (input.checked) state.planDraft.add(input.value);
     else state.planDraft.delete(input.value);
+    // A subject of the plan is listed twice: in "Tu matrícula" and in its degree.
+    for (const twin of els.planOptions.querySelectorAll("[data-plan-subject]")) {
+      if (twin.value === input.value) twin.checked = input.checked;
+    }
     updatePlanCount();
     refreshPlanYearButtons();
   });
@@ -607,13 +611,15 @@ function bindEvents() {
     const pill = event.target.closest("[data-group-id]");
     if (!pill) return;
     const { subjectId, type, groupId } = pill.dataset;
-    const current = state.selected[subjectId]?.[type];
-    if (current === groupId) {
-      delete state.selected[subjectId][type];
+    // Several groups of the same type can be chosen at once (a lecturer may
+    // teach CLE01 and CLE02), so a click only toggles that one group.
+    const current = selectedOfType(subjectId, type);
+    if (current.includes(groupId)) {
+      state.selected[subjectId][type] = current.filter((id) => id !== groupId);
+      if (!state.selected[subjectId][type].length) delete state.selected[subjectId][type];
       if (!Object.keys(state.selected[subjectId]).length) delete state.selected[subjectId];
     } else {
-      state.selected[subjectId] = state.selected[subjectId] || {};
-      state.selected[subjectId][type] = groupId;
+      setGroupSelection(groupId);
     }
     state.autoResult = null;
     onSelectionChanged();
@@ -833,10 +839,12 @@ async function openPlan(
   // Keep already-chosen groups whose subject is still in the new plan.
   for (const [subjectId, types] of Object.entries(previous)) {
     if (!state.planSubjectIds.includes(subjectId)) continue;
-    for (const [type, groupId] of Object.entries(types)) {
-      const group = state.groupIndex.get(groupId);
-      if (group && group.subject_id === subjectId && group.type === type) {
-        setGroupSelection(groupId);
+    for (const [type, groupIds] of Object.entries(types)) {
+      for (const groupId of groupIds) {
+        const group = state.groupIndex.get(groupId);
+        if (group && group.subject_id === subjectId && group.type === type) {
+          setGroupSelection(groupId);
+        }
       }
     }
   }
@@ -964,44 +972,75 @@ function openPlanDialog() {
   window.setTimeout(() => els.planSearch.focus(), 60);
 }
 
+// Every double-degree subject is also offered, with the same groups and
+// hours, by one of the single degrees.
+function isDoubleDegree(degree) {
+  return /^doble grado/i.test(degree.name);
+}
+
+function planSubjectRow(subject, year) {
+  return `
+    <label class="plan-subject" data-plan-year-scope="${escapeHtml(year.id)}">
+      <input type="checkbox" value="${escapeHtml(subject.id)}" data-plan-subject
+        data-plan-year-scope="${escapeHtml(year.id)}"
+        ${state.planDraft.has(subject.id) ? "checked" : ""}>
+      <span>
+        <strong>${escapeHtml(subject.name)}</strong>
+        <small>${subject.semester ?? 1}C · ${plural(subject.group_count ?? 0, "grupo", "grupos")} · ${plural(subject.session_count ?? 0, "sesión", "sesiones")}</small>
+      </span>
+    </label>`;
+}
+
+function planYearBlock(year, subjects, { title = `${year.number}º · ${year.name}`, toggle = true } = {}) {
+  const allSelected = subjects.every((subject) => state.planDraft.has(subject.id));
+  return `
+    <div class="plan-year">
+      <div class="plan-year-head">
+        <strong>${escapeHtml(title)}</strong>
+        <small>${plural(subjects.length, "materia", "materias")}</small>
+        ${toggle ? `<button class="text-btn" type="button" data-plan-year="${escapeHtml(year.id)}">${allSelected ? "Quitar" : "Todo"}</button>` : ""}
+      </div>
+      <div class="plan-subject-grid">${subjects.map((subject) => planSubjectRow(subject, year)).join("")}</div>
+    </div>`;
+}
+
 function renderPlanOptions() {
   const query = normalizeSearch(els.planSearch.value);
-  const degreeBlocks = [];
+  const matches = (subject, degree, year) =>
+    !query ||
+    normalizeSearch(
+      `${subject.name} ${degree.name} ${degree.short_name} ${year.name} ${year.number}`,
+    ).includes(query);
 
+  // "Tus asignaturas": the subjects of the plan as it was when the dialog was
+  // opened, grouped by the degree and year they come from, so they can be
+  // unticked without searching.  Unticking keeps them listed until applied.
+  const planIds = new Set(state.planSubjectIds);
+  const mineBlocks = [];
   for (const degree of state.degrees) {
+    for (const year of degree.years) {
+      const subjects = (year.subjects ?? []).filter(
+        (subject) => planIds.has(subject.id) && matches(subject, degree, year),
+      );
+      if (!subjects.length) continue;
+      mineBlocks.push(
+        planYearBlock(year, subjects, {
+          title: `${year.number}º · ${degree.name}`,
+          toggle: false,
+        }),
+      );
+    }
+  }
+
+  // The catalogue below leaves double degrees out so a search does not list
+  // the same subject three times.
+  const degreeBlocks = [];
+  for (const degree of state.degrees) {
+    if (isDoubleDegree(degree)) continue;
     const yearBlocks = [];
     for (const year of degree.years) {
-      const subjects = (year.subjects ?? []).filter((subject) => {
-        if (!query) return true;
-        return normalizeSearch(
-          `${subject.name} ${degree.name} ${degree.short_name} ${year.name} ${year.number}`,
-        ).includes(query);
-      });
-      if (!subjects.length) continue;
-      const allSelected = subjects.every((subject) => state.planDraft.has(subject.id));
-      const rows = subjects
-        .map(
-          (subject) => `
-          <label class="plan-subject" data-plan-year-scope="${escapeHtml(year.id)}">
-            <input type="checkbox" value="${escapeHtml(subject.id)}" data-plan-subject
-              data-plan-year-scope="${escapeHtml(year.id)}"
-              ${state.planDraft.has(subject.id) ? "checked" : ""}>
-            <span>
-              <strong>${escapeHtml(subject.name)}</strong>
-              <small>${subject.semester ?? 1}C · ${plural(subject.group_count ?? 0, "grupo", "grupos")} · ${plural(subject.session_count ?? 0, "sesión", "sesiones")}</small>
-            </span>
-          </label>`,
-        )
-        .join("");
-      yearBlocks.push(`
-        <div class="plan-year">
-          <div class="plan-year-head">
-            <strong>${year.number}º · ${escapeHtml(year.name)}</strong>
-            <small>${plural(subjects.length, "materia", "materias")}</small>
-            <button class="text-btn" type="button" data-plan-year="${escapeHtml(year.id)}">${allSelected ? "Quitar" : "Todo"}</button>
-          </div>
-          <div class="plan-subject-grid">${rows}</div>
-        </div>`);
+      const subjects = (year.subjects ?? []).filter((subject) => matches(subject, degree, year));
+      if (subjects.length) yearBlocks.push(planYearBlock(year, subjects));
     }
     if (yearBlocks.length) {
       degreeBlocks.push(`
@@ -1012,9 +1051,17 @@ function renderPlanOptions() {
     }
   }
 
-  els.planOptions.innerHTML = degreeBlocks.length
-    ? degreeBlocks.join("")
-    : '<p class="plan-empty">No hay asignaturas que coincidan con la búsqueda.</p>';
+  const mine = mineBlocks.length
+    ? `
+      <section class="plan-degree plan-mine">
+        <h3 class="plan-degree-name">Tus asignaturas</h3>
+        ${mineBlocks.join("")}
+      </section>`
+    : "";
+  els.planOptions.innerHTML =
+    mine || degreeBlocks.length
+      ? mine + degreeBlocks.join("")
+      : '<p class="plan-empty">No hay asignaturas que coincidan con la búsqueda.</p>';
   updatePlanCount();
   refreshPlanYearButtons();
 }
@@ -1089,8 +1136,14 @@ function buildIndexes(data) {
 function setGroupSelection(groupId) {
   const group = state.groupIndex.get(groupId);
   if (!group) return;
-  state.selected[group.subject_id] = state.selected[group.subject_id] || {};
-  state.selected[group.subject_id][group.type] = group.id;
+  const bySubject = (state.selected[group.subject_id] = state.selected[group.subject_id] || {});
+  const ids = (bySubject[group.type] = bySubject[group.type] || []);
+  if (!ids.includes(group.id)) ids.push(group.id);
+}
+
+// Chosen groups of one subject and type, in the order they were picked.
+function selectedOfType(subjectId, type) {
+  return state.selected[subjectId]?.[type] ?? [];
 }
 
 function semesterSubjects() {
@@ -1118,7 +1171,7 @@ function groupIdsFor(subjects) {
     const selection = state.selected[subject.id];
     if (!selection) continue;
     for (const type of Object.keys(selection).sort((a, b) => (GROUP_TYPE_ORDER[a] ?? 9) - (GROUP_TYPE_ORDER[b] ?? 9))) {
-      if (selection[type]) ids.push(selection[type]);
+      ids.push(...selection[type]);
     }
   }
   return ids;
@@ -1344,8 +1397,9 @@ function groupConflicts(group) {
   const candidateSessions = group.sessions;
   for (const selectedId of selectedGroupIds()) {
     const selectedGroup = state.groupIndex.get(selectedId);
-    if (!selectedGroup) continue;
-    if (selectedGroup.subject_id === group.subject_id && selectedGroup.type === group.type) continue;
+    // Picking a group no longer replaces its siblings, so only the group
+    // itself is skipped: CLE01 and CLE02 at the same hour do clash.
+    if (!selectedGroup || selectedGroup.id === group.id) continue;
     for (const candidate of candidateSessions) {
       for (const selected of selectedGroup.sessions) {
         if (sessionsOverlap(candidate, selected)) return true;
@@ -1419,17 +1473,17 @@ function renderSubjects() {
       const types = [...new Set(subject.groups.map((group) => group.type))].sort(
         (a, b) => (GROUP_TYPE_ORDER[a] ?? 9) - (GROUP_TYPE_ORDER[b] ?? 9),
       );
-      const selectedTypes = types.filter((type) => selection[type]);
+      const selectedTypes = types.filter((type) => selection[type]?.length);
       const rows = types
         .map((type) => {
           const groups = subject.groups
             .filter((group) => group.type === type)
             .sort((a, b) => a.code.localeCompare(b.code, "es", { numeric: true }));
           const typeLabel = groups[0]?.type_label ?? type;
-          const missing = !selection[type];
+          const missing = !selection[type]?.length;
           const pills = groups
             .map((group) => {
-              const selected = selection[type] === group.id;
+              const selected = Boolean(selection[type]?.includes(group.id));
               const pinned = isPinnedGroup(group.id);
               const conflict = groupConflicts(group);
               const pref = groupHitsPreferences(group);
@@ -1481,7 +1535,7 @@ function renderSubjects() {
         })
         .join("");
       const weeklyMinutes = selectedTypes
-        .map((type) => state.groupIndex.get(selection[type]))
+        .flatMap((type) => selection[type].map((groupId) => state.groupIndex.get(groupId)))
         .filter(Boolean)
         .reduce((sum, group) => sum + group.weekly_minutes, 0);
       return `
@@ -1586,7 +1640,7 @@ function missingGroups() {
     const selection = state.selected[subject.id] || {};
     const types = [...new Set(subject.groups.map((group) => group.type))];
     for (const type of types) {
-      if (!selection[type]) {
+      if (!selection[type]?.length) {
         const group = subject.groups.find((item) => item.type === type);
         missing.push({ subject, type, typeLabel: group?.type_label ?? type });
       }
@@ -2134,7 +2188,7 @@ function downloadJson() {
           subject_id: subject.id,
           subject_name: subject.name,
           semester: subject.semester ?? 1,
-          groups: Object.entries(selection).map(([type, groupId]) => {
+          groups: Object.entries(selection).flatMap(([type, groupIds]) => groupIds.map((groupId) => {
             const group = state.groupIndex.get(groupId);
             return {
               group_id: groupId,
@@ -2152,7 +2206,7 @@ function downloadJson() {
                 building_name: session.building_name,
               })),
             };
-          }),
+          })),
         };
       })
       .filter((subject) => subject.groups.length),

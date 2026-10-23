@@ -480,3 +480,85 @@ def test_optimize_rejects_groups_outside_plan() -> None:
         },
     )
     assert response.status_code == 422
+
+
+def _second_group_of_same_type(group_ids: list[str]) -> str | None:
+    """A sibling (same subject and type) of a chosen group that clashes with nothing."""
+
+    for group_id in group_ids:
+        group = store.group_by_id[group_id]
+        for sibling_id in store.subject_by_id[group.subject_id].group_ids:
+            sibling = store.group_by_id[sibling_id]
+            if sibling_id in group_ids or sibling.type != group.type:
+                continue
+            check = client.post(
+                "/api/schedules/validate",
+                json={"group_ids": [*group_ids, sibling_id]},
+            ).json()
+            if check["ok"]:
+                return sibling_id
+    return None
+
+
+def test_several_groups_of_same_type_can_be_selected() -> None:
+    # A lecturer may teach CLE01 and CLE02 of the same subject.
+    year_id = "year-matematicas-1"
+    group_ids = _first_year_groups()
+    extra = _second_group_of_same_type(group_ids)
+    assert extra is not None
+    payload = client.post(
+        "/api/schedules/validate",
+        json={
+            "group_ids": [*group_ids, extra],
+            "subject_ids": store.year_by_id[year_id].subject_ids,
+        },
+    ).json()
+    assert extra in payload["group_ids"]
+    assert payload["missing"] == []
+    subject_id = store.group_by_id[extra].subject_id
+    selection = next(item for item in payload["selections"] if item["subject_id"] == subject_id)
+    same_type = [item for item in selection["groups"] if item["type"] == store.group_by_id[extra].type.value]
+    assert len(same_type) == 2
+
+
+def test_optimize_keeps_every_group_of_the_same_type() -> None:
+    year_id = "year-matematicas-1"
+    group_ids = _first_year_groups()
+    extra = _second_group_of_same_type(group_ids)
+    assert extra is not None
+    response = client.post(
+        "/api/schedules/optimize",
+        json={
+            "subject_ids": store.year_by_id[year_id].subject_ids,
+            "group_ids": [*group_ids, extra],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "unchanged"
+    assert set(payload["group_ids"]) == {*group_ids, extra}
+
+
+def test_optimize_resolves_clash_between_groups_of_same_type() -> None:
+    # Two selected groups of one type that overlap are two classes: the
+    # repair moves one of them instead of collapsing them into one.
+    year_id = "year-matematicas-fisica-3"
+    group_ids = _first_groups(year_id)
+    baseline = client.post(
+        "/api/schedules/optimize",
+        json={"subject_ids": store.year_by_id[year_id].subject_ids, "group_ids": group_ids},
+    ).json()
+    pinned = baseline["changes"][0]["from_group_id"]
+    response = client.post(
+        "/api/schedules/optimize",
+        json={
+            "subject_ids": store.year_by_id[year_id].subject_ids,
+            "group_ids": [*group_ids, baseline["changes"][0]["to_group_id"]],
+            "pinned_group_ids": [pinned],
+        },
+    )
+    payload = response.json()
+    assert payload["conflicts"] == []
+    assert pinned in payload["group_ids"]
+    final = [store.group_by_id[group_id] for group_id in payload["group_ids"]]
+    assert len(final) == len(set(payload["group_ids"]))

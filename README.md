@@ -24,7 +24,8 @@ resultado.
   para repetidores (1º + 2º) y para dobles grados (Matemáticas + Física), incluso
   con cursos distintos en cada título.
 - **Selector de grupos** de expositiva, laboratorio y seminario con aviso
-  instantáneo de solapes y de coincidencia con tus preferencias.
+  instantáneo de solapes. Se pueden marcar varios grupos del mismo tipo
+  (p. ej. CLE01 y CLE02), pensado para profesores que imparten más de uno.
 - **Calendario semanal** con bloques coloreados por materia, conflictos marcados
   y geometría a 30 minutos.
 - **Bloques consecutivos unidos**: `9:00–10:00` + `10:00–11:00` se muestran como

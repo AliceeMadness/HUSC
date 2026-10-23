@@ -1361,6 +1361,12 @@ svg { display: block; }
   scrollbar-color: var(--line-strong) transparent;
 }
 .plan-degree { margin-bottom: 18px; }
+.plan-mine {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.plan-mine .plan-degree-name { color: var(--accent); }
+.plan-mine .plan-year { border-color: color-mix(in oklab, var(--accent) 35%, var(--line)); }
 .plan-degree-name {
   margin-bottom: 6px;
   color: var(--muted);
