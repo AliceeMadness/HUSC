@@ -37,7 +37,7 @@ def test_expected_catalogue_counts(catalog: Catalog) -> None:
     assert len(catalog.groups) >= 900
     assert len(catalog.class_sessions) >= 1400
     assert len(catalog.rooms) >= 30
-    assert len(catalog.buildings) == 3
+    assert len(catalog.buildings) == 4
 
 
 def test_new_degrees_are_present(catalog: Catalog) -> None:
@@ -54,7 +54,17 @@ def test_new_degrees_are_present(catalog: Catalog) -> None:
         "Facultad de Matemáticas",
         "Facultad de Física",
         "Escuela Técnica Superior de Ingeniería",
+        "Edificio Emprendia",
     }
+    # Every building carries the short label shown on each class.
+    assert {building.short_name for building in catalog.buildings} == {
+        "Matemáticas",
+        "Física",
+        "ETSE",
+        "Emprendia",
+    }
+    rooms = {room.name for room in catalog.rooms}
+    assert "Sin aula" not in rooms
 
 
 def test_ids_are_url_safe_and_unique(catalog: Catalog) -> None:
@@ -126,11 +136,21 @@ def test_legacy_slots_survive_the_migration(catalog: Catalog) -> None:
 
 
 def test_no_duplicate_group_meeting(catalog: Catalog) -> None:
+    # A meeting repeated over several weeks is one session with several weeks.
     keys = [
-        (session.group_id, session.day, session.start, session.room_id)
+        (session.group_id, session.day, session.start, session.end, session.room_id)
         for session in catalog.class_sessions
     ]
     assert len(keys) == len(set(keys))
+
+
+def test_session_weeks_belong_to_the_calendar(catalog: Catalog) -> None:
+    calendar = {week.id: week.semester for week in catalog.term.calendar}
+    assert calendar, "el catálogo sincronizado semana a semana debe tener calendario"
+    for session in catalog.class_sessions:
+        assert session.weeks, f"{session.id} sin semanas"
+        assert session.weeks == sorted(session.weeks)
+        assert all(calendar[week] == session.semester for week in session.weeks)
 
 
 def test_store_indexes_match_catalogue(catalog: Catalog) -> None:

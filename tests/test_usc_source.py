@@ -111,3 +111,93 @@ def test_sync_fallback_writes_sqlite_and_catalogue(tmp_path) -> None:
     assert run["by_source"] == {"synthetic": result["sessions"]}
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     assert catalog["source"]["notes"]
+
+
+def test_week_paths_cross_new_year() -> None:
+    from backend.usc_source import week_id, week_range
+
+    assert week_range("25/51", "26/2") == ["25/51", "25/52", "26/1", "26/2"]
+    assert week_id("25/43") == "2025-W43"
+    assert week_id("26/5") == "2026-W05"
+
+
+def test_weekly_sync_keeps_the_weeks_of_each_class(tmp_path, monkeypatch) -> None:
+    import yaml
+
+    from backend import usc_source
+
+    config = {
+        "term": {
+            "id": "test",
+            "label": "Test",
+            "academic_year": "2025/26",
+            "semesters": [
+                {"number": 1, "week": "25/40", "first_week": "25/40", "last_week": "25/42"},
+            ],
+        },
+        "degrees": [
+            {
+                "id": "matematicas",
+                "name": "Grado en Matemáticas",
+                "short_name": "Matemáticas",
+                "building": "Facultad de Matemáticas",
+                "years": [{"number": 1, "name": "Primero", "sources": [{"url": "https://x/25/43?a"}]}],
+            }
+        ],
+    }
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
+
+    def row(start: str, end: str, group: str = "CLE01") -> dict:
+        return {"course": "", "day": "mon", "start": start, "end": end,
+                "subject": "Álgebra", "group": group, "room": "Aula 1"}
+
+    # 25/40 and 25/42 are regular; 25/41 is a holiday week without classes,
+    # and an extra lab only happens in 25/42.
+    weeks = {
+        "/25/40?": [row("09:00", "10:00")],
+        "/25/41?": [],
+        "/25/42?": [row("09:00", "10:00"), row("12:00", "14:00", "CLIL01")],
+    }
+
+    def fake_fetch(url, course_label, timeout=30.0, *, client=None, allow_empty=False):
+        assert allow_empty
+        return [dict(item) for key, rows in weeks.items() if key in url for item in rows]
+
+    monkeypatch.setattr(usc_source, "fetch_course", fake_fetch)
+    result = sync(
+        config_path=config_path,
+        db_path=tmp_path / "sync.db",
+        csv_path=tmp_path / "sync.csv",
+        catalog_path=tmp_path / "catalog.json",
+    )
+    assert result["mode"] == "live"
+    catalog = json.loads((tmp_path / "catalog.json").read_text(encoding="utf-8"))
+    assert [week["id"] for week in catalog["term"]["calendar"]] == ["2025-W40", "2025-W42"]
+    by_group = {session["group_id"].rsplit("-", 1)[-1]: session for session in catalog["class_sessions"]}
+    # The same meeting in two weeks is one session, not two.
+    assert len(catalog["class_sessions"]) == 2
+    assert by_group["cle01"]["weeks"] == ["2025-W40", "2025-W42"]
+    assert by_group["clil01"]["weeks"] == ["2025-W42"]
+
+
+def test_parse_keeps_rooms_without_aula_prefix() -> None:
+    html = SAMPLE_HTML.replace("Grupo/CLE_02<br>Aula 06", "Grupo/CLE_02<br>IA.S1").replace(
+        "Grupo/CLIL_02<br>Aula 09", "Grupo/CLIL_02"
+    )
+    rows = parse_calendar_html(html, "Primero")
+    assert rows[0]["room"] == "IA.S1"
+    assert rows[1]["room"] == ""
+
+
+def test_rooms_map_to_their_building() -> None:
+    from backend.usc_source import building_for_room, building_rules, building_short_names, load_config
+
+    config = load_config()
+    rules = building_rules(config)
+    etse = "Escuela Técnica Superior de Ingeniería"
+    assert building_for_room("IA.01", etse, rules) == "Edificio Emprendia"
+    assert building_for_room("LB 5", etse, rules) == etse
+    assert building_for_room("Aula A1", etse, rules) == etse
+    short = building_short_names(config)
+    assert {short[name] for name in short} == {"Matemáticas", "Física", "ETSE", "Emprendia", "Condesa"}

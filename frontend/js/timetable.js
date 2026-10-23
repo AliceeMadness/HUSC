@@ -191,6 +191,7 @@ export function renderTimetable(container, options) {
         >
           <span class="tt-block-name">${escapeHtml(isEvent ? session.title : session.subject_name)}</span>
           <span class="tt-block-meta">${escapeHtml(meta)}</span>
+          ${isEvent ? "" : `<span class="tt-block-building">${escapeHtml(session.building_short_name || session.building_name || "")} 📍</span>`}
         </button>`;
     }).join("");
 
@@ -226,7 +227,7 @@ export function renderTimetable(container, options) {
     : `<div class="tt-empty"><div class="tt-empty-inner">
          <span class="tt-empty-icon">＋</span>
          <strong>Tu semana está en blanco</strong>
-         <p>Elige un grupo en la izquierda o deja que el piloto automático haga la primera propuesta.</p>
+         <p>Elige un grupo en el panel de la izquierda.</p>
        </div></div>`;
 
   container.innerHTML = `

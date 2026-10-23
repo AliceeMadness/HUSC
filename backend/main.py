@@ -23,7 +23,7 @@ from .scheduling import (
     validate_selection,
 )
 from .store import ROOT, store
-from .timeutil import DAY_LABELS, parse_hm
+from .timeutil import DAY_LABELS, parse_hm, week_in_current_year
 
 FRONTEND_DIR = ROOT / "frontend"
 WEEKDAY_INDEX = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
@@ -91,6 +91,8 @@ class ValidateRequest(BaseModel):
     min_free_minutes: int = Field(default=30, ge=0, le=600)
     day_start: str | None = None
     day_end: str | None = None
+    # ISO week (``2025-W43``) whose blocks, free slots and stats are returned.
+    week: str | None = Field(default=None, pattern=r"^\d{4}-W\d{2}$")
 
 
 class GenerateRequest(BaseModel):
@@ -284,6 +286,7 @@ def validate(payload: ValidateRequest) -> dict:
             day_end=day_end,
             subject_ids=payload.subject_ids,
             custom_events=_events(payload.custom_events),
+            week=payload.week,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -433,9 +436,22 @@ def _build_ics(ids: list[str], name: str, custom_events: list[dict] | None = Non
         f"X-WR-TIMEZONE:{term.timezone}",
     ]
 
-    # One VEVENT per merged visual block, not one per hourly fragment.
+    # One VEVENT per merged visual block, not one per hourly fragment.  A
+    # block taught only in some weeks gets one dated VEVENT per week, moved to
+    # the current academic year; a block without weeks repeats weekly.
+    first_week = term.calendar[0].id if term.calendar else None
+    occurrences: list[tuple[dict, date | None]] = []
     for block in validation["blocks"]:
-        event_day = next_monday + timedelta(days=WEEKDAY_INDEX[block["day"]])
+        if block.get("weeks") and first_week:
+            occurrences.extend(
+                (block, week_in_current_year(week, first_week, today) + timedelta(days=WEEKDAY_INDEX[block["day"]]))
+                for week in block["weeks"]
+            )
+        else:
+            occurrences.append((block, None))
+
+    for block, dated in occurrences:
+        event_day = dated or next_monday + timedelta(days=WEEKDAY_INDEX[block["day"]])
         start = block["start"].replace(":", "")
         end = block["end"].replace(":", "")
         location = f"{block['building_name']} · {block['room_name']}"
@@ -449,11 +465,15 @@ def _build_ics(ids: list[str], name: str, custom_events: list[dict] | None = Non
         lines.extend(
             [
                 "BEGIN:VEVENT",
-                f"UID:{block['id']}@horario.usc",
+                f"UID:{block['id']}{f'-{event_day:%Y%m%d}' if dated else ''}@horario.usc",
                 f"DTSTAMP:{stamp}",
                 f"DTSTART;TZID={term.timezone}:{event_day:%Y%m%d}T{start}00",
                 f"DTEND;TZID={term.timezone}:{event_day:%Y%m%d}T{end}00",
-                f"RRULE:FREQ=WEEKLY;COUNT={term.weeks};BYDAY={ICS_DAY[block['day']]}",
+                *(
+                    []
+                    if dated
+                    else [f"RRULE:FREQ=WEEKLY;COUNT={term.weeks};BYDAY={ICS_DAY[block['day']]}"]
+                ),
                 f"SUMMARY:{_ics_escape(block['subject_name'])} ({block['group_code']})",
                 f"LOCATION:{_ics_escape(location)}",
                 f"DESCRIPTION:{_ics_escape(description)}",

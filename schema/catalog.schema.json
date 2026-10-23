@@ -52,6 +52,18 @@
         "campus_id": {
           "title": "Campus Id",
           "type": "string"
+        },
+        "short_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Short Name"
         }
       },
       "required": [
@@ -153,13 +165,17 @@
         "weeks": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Weeks"
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             {
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "title": "Weeks"
         },
         "note": {
           "anyOf": [
@@ -472,6 +488,35 @@
       "title": "Subject",
       "type": "object"
     },
+    "TeachingWeek": {
+      "additionalProperties": false,
+      "description": "An ISO week with classes, e.g. ``2025-W43`` starting on ``2025-10-20``.",
+      "properties": {
+        "id": {
+          "pattern": "^\\d{4}-W\\d{2}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "semester": {
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Semester",
+          "type": "integer"
+        },
+        "monday": {
+          "format": "date",
+          "title": "Monday",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "semester",
+        "monday"
+      ],
+      "title": "TeachingWeek",
+      "type": "object"
+    },
     "Term": {
       "additionalProperties": false,
       "properties": {
@@ -510,6 +555,13 @@
           "default": 15,
           "title": "Weeks",
           "type": "integer"
+        },
+        "calendar": {
+          "items": {
+            "$ref": "#/$defs/TeachingWeek"
+          },
+          "title": "Calendar",
+          "type": "array"
         }
       },
       "required": [
@@ -518,37 +570,6 @@
         "academic_year"
       ],
       "title": "Term",
-      "type": "object"
-    },
-    "Weeks": {
-      "additionalProperties": false,
-      "properties": {
-        "from_week": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "From Week"
-        },
-        "to_week": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "To Week"
-        }
-      },
-      "title": "Weeks",
       "type": "object"
     }
   },

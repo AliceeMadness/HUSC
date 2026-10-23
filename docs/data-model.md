@@ -76,8 +76,15 @@ Contexto temporal del catálogo:
 ```
 
 `day_start`/`day_end` son la ventana de representación y de búsqueda de huecos.
-`weeks` se usa para exportar el `.ics`; no implica que el catálogo tenga datos de
-15 semanas distintas.
+`weeks` es el número de repeticiones de las actividades extraescolares en el
+`.ics`. `calendar` lista las semanas lectivas descargadas, en orden:
+
+```json
+"calendar": [
+  {"id": "2025-W37", "semester": 1, "monday": "2025-09-08"},
+  {"id": "2026-W05", "semester": 2, "monday": "2026-01-26"}
+]
+```
 
 ### `degree` y `year`
 
@@ -174,7 +181,7 @@ La pieza central. Es una reunión semanal recurrente, no una fecha concreta:
   "room_id": "room-facultad-de-matematicas-aula-06",
   "building_id": "bld-facultad-de-matematicas",
   "instructors": [],
-  "weeks": null,
+  "weeks": ["2025-W39", "2025-W40", "2025-W41"],
   "note": null,
   "legacy": {
     "slot": "L13",
@@ -197,8 +204,11 @@ Decisiones clave:
   y vistas simples; la validación exige que coincidan.
 - **`instructors`** vacío hoy, preparado para añadir docentes sin romper el
   contrato.
-- **`weeks`** permite modelar asignaturas que solo se imparten algunas semanas.
-  En esta importación es `null` (semana tipo).
+- **`weeks`** son las semanas ISO (`2025-W43`) en que se imparte la sesión,
+  todas de `term.calendar` y de su cuatrimestre. Una misma clase repetida varias
+  semanas es una sola sesión con varias semanas; `null` significa «todas las
+  semanas» (catálogos de semana tipo). Dos sesiones solo se solapan si además
+  comparten alguna semana.
 - **`legacy`** conserva la fila y el slot originales para auditar la migración.
 
 ## Matrícula: asignaturas de varios cursos y grados

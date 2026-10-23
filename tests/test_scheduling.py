@@ -413,3 +413,32 @@ def test_sessions_of_different_semesters_never_conflict() -> None:
     assert pairs, "the fixture needs a 1C and a 2C group meeting at the same time"
     result = validate_selection(store, list(pairs[0]))
     assert result["conflicts"] == []
+
+
+def _view(id_: str, weeks: list[str] | None, group: str) -> dict:
+    return {
+        "id": id_, "day": "mon", "start": "09:00", "end": "10:00", "semester": 1,
+        "group_id": group, "group_code": group, "subject_name": group, "weeks": weeks,
+    }
+
+
+def test_meetings_in_different_weeks_do_not_overlap() -> None:
+    regular = _view("a", ["2025-W40", "2025-W41"], "g1")
+    special = _view("b", ["2025-W42"], "g2")
+    every_week = _view("c", None, "g3")
+    assert find_conflicts([regular, special]) == []
+    # A meeting without weeks happens every week, so it clashes with both.
+    assert len(find_conflicts([regular, special, every_week])) == 2
+
+
+def test_week_in_current_year_keeps_week_number() -> None:
+    from datetime import date
+
+    from backend.timeutil import week_in_current_year
+
+    today = date(2026, 10, 23)
+    assert week_in_current_year("2025-W43", "2025-W37", today) == date(2026, 10, 19)
+    # Second-term weeks land in the following calendar year.
+    assert week_in_current_year("2026-W05", "2025-W37", today) == date(2027, 2, 1)
+    # Inside the downloaded academic year nothing moves.
+    assert week_in_current_year("2025-W43", "2025-W37", date(2026, 3, 1)) == date(2025, 10, 20)

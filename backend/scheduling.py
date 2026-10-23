@@ -110,13 +110,28 @@ def sessions_for_groups(
     return sessions
 
 
+def share_week(first: list[str] | None, second: list[str] | None) -> bool:
+    """Whether two meetings happen in a common week (``None`` = every week)."""
+
+    return first is None or second is None or not set(first).isdisjoint(second)
+
+
 def _overlaps(a: ClassSession, b: ClassSession) -> bool:
     return (
         a.day == b.day
         and a.semester == b.semester
         and _minutes(a.start) < _minutes(b.end)
         and _minutes(b.start) < _minutes(a.end)
+        and share_week(a.weeks, b.weeks)
     )
+
+
+def in_week(views: list[dict], week: str | None) -> list[dict]:
+    """The meetings of one ISO week; ``None`` keeps them all."""
+
+    if week is None:
+        return views
+    return [view for view in views if view.get("weeks") is None or week in view["weeks"]]
 
 
 def _overlaps_blocked(session: ClassSession, blocked: list[dict]) -> bool:
@@ -139,6 +154,9 @@ def find_conflicts(views: list[dict]) -> list[dict]:
                 continue
             # A group meeting in two rooms at once is one class, not a clash.
             if first.get("group_id") and first.get("group_id") == second.get("group_id"):
+                continue
+            # Meetings in disjoint sets of weeks never coincide.
+            if not share_week(first.get("weeks"), second.get("weeks")):
                 continue
             first_start, first_end = _minutes(first["start"]), _minutes(first["end"])
             second_start, second_end = _minutes(second["start"]), _minutes(second["end"])
@@ -276,6 +294,7 @@ def merge_session_views(views: list[dict]) -> list[dict]:
             view["day"],
             view["room_id"],
             view["building_id"],
+            tuple(view["weeks"]) if view.get("weeks") is not None else None,
         )
         groups.setdefault(key, []).append(view)
 
@@ -473,7 +492,14 @@ def validate_selection(
     day_end: str = "21:00",
     subject_ids: list[str] | None = None,
     custom_events: list[dict] | None = None,
+    week: str | None = None,
 ) -> dict:
+    """Overlaps over the whole term; blocks, free slots and stats of ``week``.
+
+    Conflicts are reported whenever two meetings share any week, so a clash
+    in a single special week is not hidden by looking at another one.
+    """
+
     groups = resolve_groups(store, group_ids)
     blocked_norm = normalize_blocked(blocked)
     events_norm = normalize_events(custom_events)
@@ -486,10 +512,11 @@ def validate_selection(
                 + ", ".join(outside_plan)
             )
     sessions = sessions_for_groups(store, groups)
-    views, conflicts, _ = _enriched_sessions(store, sessions)
+    all_views, conflicts, _ = _enriched_sessions(store, sessions)
+    views = in_week(all_views, week)
     blocks = merge_session_views(views)
-    blocked_conflicts = _blocked_conflicts(views, blocked_norm)
-    event_conflicts = _event_conflicts(views, events_norm)
+    blocked_conflicts = _blocked_conflicts(all_views, blocked_norm)
+    event_conflicts = _event_conflicts(all_views, events_norm)
     free = free_intervals(
         views + [event for event in events_norm if event["day"] in DAY_ORDER],
         blocked=blocked_norm,
@@ -506,6 +533,7 @@ def validate_selection(
         "subject_ids": list(dict.fromkeys(subject_ids)) if subject_ids is not None else None,
         "selections": _selection_view(store, groups),
         "missing": _missing_requirements(store, groups, subject_ids=subject_ids),
+        "week": week,
         "sessions": views,
         "blocks": blocks,
         "conflicts": conflicts,
@@ -1247,8 +1275,9 @@ def optimize_schedule(
             raise ValueError(f"El grupo {group.code} no pertenece a ninguna materia de la matrícula")
 
     # One variable per selected group, so CLE01 + CLE02 of the same subject
-    # are two classes to keep, not one slot where the last pick wins.  A
-    # subject type with nothing selected still gets one empty variable.
+    # are two classes to keep, not one slot where the last pick wins.  Only
+    # what the user chose is repaired: a subject type with nothing selected
+    # (say, the CLIL of a subject where only CLE was picked) is left alone.
     variables: list[Variable] = []
     current: list[str | None] = []
     pinned_indices: set[int] = set()
@@ -1258,10 +1287,6 @@ def optimize_schedule(
             group for group in groups_now
             if group.subject_id == base.subject_id and group.type == base.type
         ]
-        if not chosen:
-            variables.append(base)
-            current.append(None)
-            continue
         for group in chosen:
             if group.id in pinned_set:
                 pinned_indices.add(len(variables))

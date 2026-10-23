@@ -4,6 +4,10 @@ Usage:
     python scripts/sync_usc.py                # live USC, synthetic per failed course
     python scripts/sync_usc.py --synthetic    # force invented fallback data
     python scripts/sync_usc.py --timeout 15   # shorter HTTP timeout
+    python scripts/sync_usc.py --single-week  # one typical week per term (fast)
+
+By default every week of each term in config.yaml is downloaded, so classes
+that only happen in some weeks keep the weeks they are taught in.
 
 The raw result is stored in ``data/usc_sync.db`` (SQLite) and the app-facing
 catalogue is rebuilt from the same legacy CSV pipeline used by the original
@@ -32,9 +36,16 @@ def main() -> int:
         help="No consultes la USC; genera datos inventados en la BBDD",
     )
     parser.add_argument("--timeout", type=float, default=30.0, help="Timeout HTTP en segundos")
+    parser.add_argument(
+        "--single-week",
+        action="store_true",
+        help="Descarga solo la semana tipo de cada cuatrimestre en lugar de todas",
+    )
     args = parser.parse_args()
 
-    result = sync(force_synthetic=args.synthetic, timeout=args.timeout)
+    result = sync(
+        force_synthetic=args.synthetic, timeout=args.timeout, single_week=args.single_week
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print(
         "\nListo. Reinicia uvicorn para que la API cargue el nuevo catálogo:\n"

@@ -4,13 +4,13 @@ Aplicación web para montar el horario semanal de los grados de **Matemáticas**
 **Física**, **Ingeniería Informática** e **Inteligencia Artificial**, y de los
 dobles grados **Informática + Matemáticas** y **Matemáticas + Física** de la
 Universidade de Santiago de Compostela. Eliges un grupo de expositiva,
-laboratorio y seminario por materia y la aplicación valida solapes, calcula
-huecos libres, sugiere dónde mover una clase y permite compartir o exportar el
-resultado.
+laboratorio y seminario por materia y la aplicación valida solapes, muestra
+cada semana del curso, sugiere dónde mover una clase y permite compartir o
+exportar el resultado.
 
 > **Estado:** prototipo funcional de hackathon. Los datos incluidos son una
-> *semana tipo* importada de los ficheros `horario.csv` / `forms_data.json` del
-> repositorio. No sustituyen al calendario oficial de la USC.
+> sincronización semana a semana del curso 2025/26 desde la web de la USC. No
+> sustituyen al calendario oficial de la USC.
 
 ![Vista de escritorio en tema claro](docs/workspace-light.png)
 
@@ -31,6 +31,14 @@ resultado.
 - **Bloques consecutivos unidos**: `9:00–10:00` + `10:00–11:00` se muestran como
   una sola clase `9:00–11:00` (también en el `.ics`), conservando las sesiones
   originales para moverlas o exportarlas.
+- **Selector de semana** entre «Extraescolar» y «Exportar»: agrupa las semanas
+  con el mismo horario, llama «Horario habitual» a la más repetida y nombra
+  las demás («Primera semana», «Semana del 12 oct · 1 clase más»…). Por defecto
+  marca la semana actual según la fecha del dispositivo. Los solapes que solo
+  ocurren en otras semanas se avisan aparte.
+- **Cuatrimestre automático**: al abrir la app se muestra el cuatrimestre de
+  la fecha del dispositivo (el 2C empieza en su primera semana lectiva; enero
+  cuenta como 1C). El botón 1C/2C lo cambia solo durante esa visita.
 - **Clases extraescolares** recurrentes: título, día, hora, lugar y color. Se
   pintan en el calendario, bloquean huecos, avisan de cruces y el generador las
   evita.
@@ -39,7 +47,6 @@ resultado.
 - **Generación automática** con un solver de restricciones: minimiza días y
   huecos, respeta franjas bloqueadas, extraescolares y grupos fijados; si hay
   optativas incompatibles, devuelve el mayor subconjunto que cabe sin solapes.
-- **Huecos libres** por día con duración mínima configurable (30 min / 1 h / 1,5 h).
 - **Modo «mover una clase»**: al pulsar una clase, busca huecos compatibles para
   el grupo y para el resto de tu horario, y permite copiar la propuesta.
 - **Compartir** con un enlace corto (se guarda una instantánea en el servidor,
@@ -47,7 +54,8 @@ resultado.
 - **Exportar** a JSON, calendario `.ics` o PDF mediante impresión.
 - **Sincronización real con la USC** usando el mismo acceso AJAX que la app de
   referencia, con fallback sintético en SQLite.
-- **Tema claro/oscuro**, diseño responsive y persistencia local del horario.
+- **Colores USC** (azul `#000066` / `#004c93` de usc.gal), tema claro/oscuro,
+  diseño responsive y persistencia local del horario.
 
 ## Stack
 
@@ -148,7 +156,7 @@ tests/
 | `POST` | `/api/free-slots` | complemento libre de un conjunto de grupos |
 | `POST` | `/api/schedules/share` | guardar una instantánea y obtener id |
 | `GET` | `/api/shared/{id}` | recuperar una instantánea compartida |
-| `GET` | `/api/schedules/export.ics` | calendario `.ics` de 15 semanas |
+| `GET` | `/api/schedules/export.ics` | calendario `.ics` (cada clase en sus semanas) |
 | `POST` | `/api/schedules/export.ics` | `.ics` con bloques unidos y extraescolares |
 | `GET` | `/api/sync/status` | última sincronización USC (live/synthetic) |
 
@@ -187,9 +195,14 @@ python scripts/sync_usc.py
 python scripts/sync_usc.py --synthetic
 ```
 
-En la última ejecución respondieron correctamente las **36 URLs** (los dobles
-grados tienen dos fuentes por curso) y se importaron **1.584 sesiones** con 168
-asignaturas y 992 grupos.
+La sincronización recorre todas las semanas de cada cuatrimestre
+(`first_week`–`last_week` en `config.yaml`; las semanas sin clases se ignoran)
+y cada sesión guarda en `weeks` las semanas en que se imparte. Con
+`--single-week` descarga solo la semana tipo, como antes.
+
+En la última ejecución respondieron los **27 cursos** (los dobles grados tienen
+dos fuentes por curso), con 31 semanas lectivas, **4.676 sesiones**, 329
+asignaturas y 1.912 grupos.
 
 La sincronización escribe:
 
@@ -232,7 +245,7 @@ El detalle está en [`docs/data-model.md`](docs/data-model.md). En resumen:
   "room_id": "room-facultad-de-matematicas-aula-06",
   "building_id": "bld-facultad-de-matematicas",
   "instructors": [],
-  "weeks": null
+  "weeks": ["2025-W39", "2025-W40", "..."]
 }
 ```
 
@@ -247,9 +260,11 @@ de UI. Las referencias son ids; los nombres viven en su propia entidad. El
   *Facultad de Matemáticas* al Grado de Matemáticas y *Facultad de Física* al
   Doble Grado, y lo documenta en `source.notes`. Es un campo editable en el
   catálogo, no una verdad de la fuente.
-- **Semana tipo.** Las URLs de `config.yaml` apuntan a la semana 43 de 2025/26.
-  El catálogo no inventa semanas lectivas: `weeks` es `null` y el término se
-  etiqueta como «semana 43». El `.ics` exporta 15 repeticiones desde el próximo
+- **Semanas.** El catálogo describe el curso 2025/26. Para elegir la semana
+  actual y para el `.ics`, cada semana conserva su número ISO y se traslada al
+  curso académico en vigor (la semana 43 de 2025 es la 43 de 2026). Las clases
+  con semanas conocidas se exportan una vez por semana; las extraescolares,
+  15 repeticiones desde el próximo
   lunes.
 - **Optativas.** En 4º de Mates-Física hay materias que comparten franjas. El
   generador devuelve un subconjunto máximo sin solapes y lista las excluidas en

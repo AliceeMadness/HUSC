@@ -8,7 +8,7 @@ to consume from any client.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -61,6 +61,17 @@ class SourceInfo(StrictModel):
     notes: list[str] = Field(default_factory=list)
 
 
+WEEK_ID_RE = r"^\d{4}-W\d{2}$"
+
+
+class TeachingWeek(StrictModel):
+    """An ISO week with classes, e.g. ``2025-W43`` starting on ``2025-10-20``."""
+
+    id: str = Field(pattern=WEEK_ID_RE)
+    semester: int = Field(ge=1, le=2)
+    monday: date
+
+
 class Term(StrictModel):
     id: str
     label: str
@@ -70,6 +81,9 @@ class Term(StrictModel):
     day_start: str = "08:00"
     day_end: str = "21:00"
     weeks: int = 15
+    # Teaching weeks that were downloaded, in order.  Sessions point at these
+    # ids in ``ClassSession.weeks``; empty for single "typical week" catalogues.
+    calendar: list[TeachingWeek] = Field(default_factory=list)
 
     @field_validator("day_start", "day_end")
     @classmethod
@@ -94,6 +108,8 @@ class Building(StrictModel):
     id: str
     name: str
     campus_id: str
+    # Label shown on each class, e.g. "ETSE" for the engineering school.
+    short_name: str | None = None
 
 
 class Room(StrictModel):
@@ -136,9 +152,6 @@ class Group(StrictModel):
     session_ids: list[str] = Field(default_factory=list)
 
 
-class Weeks(StrictModel):
-    from_week: int | None = None
-    to_week: int | None = None
 
 
 class LegacyRef(StrictModel):
@@ -168,7 +181,8 @@ class ClassSession(StrictModel):
     # Copied from the subject: meetings of different terms never overlap.
     semester: int = Field(default=1, ge=1, le=2)
     instructors: list[str] = Field(default_factory=list)
-    weeks: Weeks | None = None
+    # ISO weeks in which this meeting takes place; ``None`` means every week.
+    weeks: list[str] | None = None
     note: str | None = None
     legacy: LegacyRef | None = None
 
@@ -290,6 +304,7 @@ class Catalog(StrictModel):
         subjects = unique_ids("subjects", self.subjects)
         groups = unique_ids("groups", self.groups)
         sessions = unique_ids("class_sessions", self.class_sessions)
+        calendar = unique_ids("term.calendar", self.term.calendar)
 
         for building in self.buildings:
             if building.campus_id not in campuses:
@@ -317,6 +332,12 @@ class Catalog(StrictModel):
                 raise ValueError(f"{session.id}: edificio inexistente {session.building_id}")
             if rooms[session.room_id].building_id != session.building_id:
                 raise ValueError(f"{session.id}: el aula no pertenece al edificio indicado")
+            if session.weeks is not None:
+                unknown = [week for week in session.weeks if week not in calendar]
+                if unknown:
+                    raise ValueError(f"{session.id}: semanas fuera del calendario {unknown}")
+                if any(calendar[week].semester != session.semester for week in session.weeks):
+                    raise ValueError(f"{session.id}: semanas de otro cuatrimestre")
 
         for year in self.years:
             if set(year.subject_ids) != {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 
 DAY_CODES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 DAY_LABELS = {
@@ -55,3 +56,33 @@ def intervals_overlap(a_start: int, a_end: int, b_start: int, b_end: int) -> boo
 
 def display_slot(day: str, start: str, end: str) -> str:
     return f"{DAY_LABELS.get(day, day)} {start}–{end}"
+
+
+def academic_year_start(day: date) -> int:
+    """Calendar year in which the academic year containing ``day`` began.
+
+    Courses start in September, so August is counted as the run-up to the
+    new year rather than the tail of the old one.
+    """
+
+    return day.year if day.month >= 8 else day.year - 1
+
+
+def week_in_current_year(week_id: str, first_week_id: str, today: date) -> date:
+    """Monday of ``week_id`` moved to the academic year that contains ``today``.
+
+    The catalogue may describe an earlier academic year.  Each week keeps its
+    ISO week number and is shifted by whole years, so week 43 of the
+    downloaded year becomes week 43 of this one.
+    """
+
+    data_start = academic_year_start(_iso_monday(first_week_id))
+    offset = academic_year_start(today) - data_start
+    year, number = int(week_id[:4]) + offset, int(week_id[6:])
+    # Not every year has an ISO week 53.
+    weeks_in_year = date(year, 12, 28).isocalendar()[1]
+    return date.fromisocalendar(year, min(number, weeks_in_year), 1)
+
+
+def _iso_monday(week_id: str) -> date:
+    return date.fromisocalendar(int(week_id[:4]), int(week_id[6:]), 1)

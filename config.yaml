@@ -8,15 +8,39 @@ term:
   label: "Curso 2025/26"
   academic_year: "2025/26"
   source_week: 43
-  # Semana tipo de cada cuatrimestre: sustituye el final "/<año>/<semana>" de
-  # cada URL.  Las URLs de abajo apuntan a la semana del primer cuatrimestre.
+  # Cada cuatrimestre se descarga semana a semana, de first_week a last_week
+  # (sustituyendo el final "/<año>/<semana>" de cada URL); las semanas sin
+  # clases se ignoran.  "week" es la semana tipo que se usa con --single-week.
   semesters:
     - number: 1
       week: "25/43"
+      first_week: "25/36"
+      last_week: "25/52"
     - number: 2
       week: "26/10"
+      first_week: "26/4"
+      last_week: "26/22"
   timezone: Europe/Madrid
   weeks: 15
+
+# Edificios con el nombre corto que se muestra en cada clase.  La USC solo
+# publica el aula, así que el edificio sale de la fuente (ver "building" en
+# cada grado o fuente) salvo que el aula encaje con uno de los patrones
+# "rooms" (expresiones regulares): las aulas IA.* están en Emprendia aunque
+# las publique la ETSE.
+buildings:
+  - name: Facultad de Matemáticas
+    short_name: Matemáticas
+  - name: Facultad de Física
+    short_name: Física
+  - name: Escuela Técnica Superior de Ingeniería
+    short_name: ETSE
+  - name: Edificio Emprendia
+    short_name: Emprendia
+    rooms: ['^IA\.']
+  - name: Colexio da Condesa
+    short_name: Condesa
+    rooms: []
 
 degrees:
   - id: matematicas

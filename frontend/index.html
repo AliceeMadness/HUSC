@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#f4f1e9">
+  <meta name="theme-color" content="#f3f5f9">
   <title>Horario · Constructor de horarios USC</title>
   <meta name="description" content="Elige tus grupos de expositiva, laboratorio y seminario y monta tu horario de la USC sin solapes.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23166b58'/%3E%3Cpath d='M8 9h7v7H8zM17 9h7v7h-7zM8 18h7v7H8zM17 18h7v7h-7z' fill='%23eaf6f1'/%3E%3C/svg%3E">
@@ -45,9 +45,16 @@
             <h1 id="landing-title">HUSC</h1>
             <p class="hero-lead">
               Elige tus grupos de expositiva, laboratorio y seminario.
-              Nosotros comprobamos los solapes, encontramos tus huecos
-              y te dejamos un horario listo para compartir.
+              Nosotros comprobamos los solapes, te enseñamos cada semana
+              del curso y te dejamos un horario listo para compartir.
             </p>
+            <button class="btn btn-accent hero-resume hidden" id="resume-plan" type="button">
+              <span class="hero-resume-copy">
+                <span>Volver a mi horario</span>
+                <small id="resume-plan-label"></small>
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
             <div class="hero-meta">
               <span><strong>2</strong> grados</span>
               <span><strong>9</strong> cursos</span>
@@ -79,7 +86,7 @@
                 <span class="hero-check">✓</span>
               </div>
             </div>
-            <div class="hero-note hero-note-a">12 h libres</div>
+            <div class="hero-note hero-note-a">Semana a semana</div>
             <div class="hero-note hero-note-b">9 grupos elegidos</div>
           </div>
         </div>
@@ -108,7 +115,7 @@
           </div>
           <div class="feature">
             <span class="feature-icon">◷</span>
-            <div><strong>Huecos reales</strong><p>Encuentra horas libres y propón mover una clase.</p></div>
+            <div><strong>Semana a semana</strong><p>Mira cada semana del curso y propón mover una clase.</p></div>
           </div>
           <div class="feature">
             <span class="feature-icon">↗</span>
@@ -134,7 +141,7 @@
               <span class="auto-spark" aria-hidden="true">✦</span>
             </div>
             <h2>Arregla tu horario.</h2>
-            <p>Quitamos los solapes de tu horario cambiando los menos grupos posibles. Lo que no choca, se queda como está.</p>
+            <p>Quitamos los solapes de tu horario cambiando los menos grupos posibles. Solo tocamos los grupos que ya has elegido; lo que no choca, se queda como está.</p>
             <button class="btn btn-accent btn-wide" id="auto-btn" type="button">
               <span class="btn-label">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5l1.5 4.4 4.5 1.6-4.5 1.6L12 15.5l-1.5-4.4L6 9.5l4.5-1.6L12 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" fill="currentColor"/></svg>
@@ -170,6 +177,10 @@
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
                   Extraescolar
                 </button>
+                <label class="week-picker hidden" id="week-picker" title="Semana que se muestra">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                  <select id="week-select" aria-label="Semana del horario"></select>
+                </label>
                 <button class="btn btn-quiet" id="export-btn" type="button">
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v2.5h14V17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   Exportar
@@ -186,20 +197,12 @@
           </div>
 
           <div class="insights">
-            <section class="insight-card panel" aria-labelledby="free-title">
+            <section class="insight-card panel" aria-labelledby="events-title">
               <div class="insight-head">
                 <div>
-                  <p class="insight-kicker">Tu tiempo</p>
-                  <h2 id="free-title">Huecos libres</h2>
+                  <p class="insight-kicker">Fuera de clase</p>
+                  <h2 id="events-title">Extraescolares</h2>
                 </div>
-                <div class="segmented" id="free-duration" role="group" aria-label="Duración mínima">
-                  <button type="button" data-min="30">30′</button>
-                  <button type="button" data-min="60" class="is-active">1 h</button>
-                  <button type="button" data-min="90">1,5 h</button>
-                </div>
-              </div>
-              <div class="free-slots" id="free-slots">
-                <p class="empty-copy">Elige algún grupo para ver tus huecos.</p>
               </div>
               <div class="event-list" id="event-list"></div>
             </section>
@@ -280,7 +283,7 @@
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <p class="dialog-copy">Se repite cada semana. El generador evitará solaparla con clases y la tendrá en cuenta al buscar huecos.</p>
+    <p class="dialog-copy">Se repite cada semana. Te avisamos si coincide con una clase y «Resolver solapes» la respeta.</p>
     <form class="event-form" id="event-form">
       <label class="form-field form-field-wide">
         <span>Título</span>

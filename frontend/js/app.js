@@ -6,7 +6,7 @@ import { DAYS, formatDuration, renderTimetable, toMinutes } from "./timetable.js
    -------------------------------------------------------------------------- */
 
 const PALETTE = [
-  "#2f7d6b",
+  "#004c93",
   "#b06a3c",
   "#526fa8",
   "#8b5e83",
@@ -22,7 +22,6 @@ const DAY_LABELS = { mon: "Lunes", tue: "Martes", wed: "Miércoles", thu: "Jueve
 const DAY_ORDER = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4 };
 const LS_LAST = "horario:last-v2";
 const LS_THEME = "horario:theme";
-const LS_SEMESTER = "horario:semester";
 const SEMESTER_NAMES = { 1: "primer cuatrimestre", 2: "segundo cuatrimestre" };
 
 const state = {
@@ -42,8 +41,11 @@ const state = {
   allSessions: [],
   sessionById: new Map(),
   selected: {},
-  semester: readSemester(),
-  minFree: 60,
+  semester: 1,
+  // ISO week on screen (``2025-W43``).  While ``weekAuto`` is true it follows
+  // the device date; picking a week in the menu turns it off.
+  weekId: null,
+  weekAuto: true,
   localSchedule: { sessions: [], conflicts: [] },
   validation: null,
   validationKey: null,
@@ -78,8 +80,12 @@ async function init() {
     brandLink: document.getElementById("brand-link"),
     changeYear: document.getElementById("change-year"),
     customPlan: document.getElementById("custom-plan"),
+    resumePlan: document.getElementById("resume-plan"),
+    resumePlanLabel: document.getElementById("resume-plan-label"),
     editPlan: document.getElementById("edit-plan"),
     addEventBtn: document.getElementById("add-event-btn"),
+    weekPicker: document.getElementById("week-picker"),
+    weekSelect: document.getElementById("week-select"),
     eventList: document.getElementById("event-list"),
     eventDialog: document.getElementById("event-dialog"),
     eventDialogTitle: document.getElementById("event-dialog-title"),
@@ -101,8 +107,6 @@ async function init() {
     daysStat: document.getElementById("days-stat"),
     alerts: document.getElementById("alerts"),
     timetable: document.getElementById("timetable"),
-    freeSlots: document.getElementById("free-slots"),
-    freeDuration: document.getElementById("free-duration"),
     moveCard: document.getElementById("move-card"),
     movePanel: document.getElementById("move-panel"),
     exitMove: document.getElementById("exit-move"),
@@ -128,13 +132,14 @@ async function init() {
   applyTheme(preferredTheme, false);
   renderSemesterToggle();
   bindEvents();
-  updateFreeDurationButtons();
 
   try {
     const [meta, directory] = await Promise.all([api.health(), api.degrees()]);
     state.meta = meta;
     state.term = directory.term;
     state.degrees = directory.degrees;
+    state.semester = semesterForToday();
+    renderSemesterToggle();
     renderLanding();
     updateHeroCounts();
 
@@ -174,15 +179,9 @@ async function init() {
       });
       return;
     }
-    if (saved?.subjectIds?.length) {
-      await openPlan(saved.subjectIds, {
-        groupIds: saved.groupIds ?? [],
-        autoResult: saved.autoResult ?? null,
-        customEvents: saved.customEvents ?? [],
-        pinnedGroupIds: saved.pinnedGroupIds ?? [],
-      });
-      return;
-    }
+    // The app always opens on the HUSC presentation; a saved timetable is
+    // one click away through "Volver a mi horario".  Only links that point
+    // at something (a shared timetable, a plan or a year) skip it.
     showLanding();
   } catch (error) {
     if (error?.status === 422) {
@@ -452,8 +451,7 @@ function deleteEditingEvent() {
 function renderEventList() {
   if (!state.customEvents.length) {
     els.eventList.innerHTML = `
-      <div class="event-list-head"><span>Extraescolares</span><span>0</span></div>
-      <p class="event-empty">Añade entrenamientos, trabajo o academias para que el generador los respete.</p>`;
+      <p class="event-empty">Añade entrenamientos, trabajo o academias con «Extraescolar» para que el horario los respete.</p>`;
     return;
   }
   const chips = state.customEvents
@@ -468,9 +466,7 @@ function renderEventList() {
       </button>`,
     )
     .join("");
-  els.eventList.innerHTML = `
-    <div class="event-list-head"><span>Extraescolares</span><span>${state.customEvents.length}</span></div>
-    <div class="event-chips">${chips}</div>`;
+  els.eventList.innerHTML = `<div class="event-chips">${chips}</div>`;
 }
 
 // Time-of-day preferences were removed from the UI; no slot is avoided.
@@ -486,7 +482,7 @@ function applyTheme(theme, persist = true) {
   const value = theme === "dark" ? "dark" : "light";
   document.documentElement.dataset.theme = value;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = value === "dark" ? "#101613" : "#f4f1e9";
+  if (meta) meta.content = value === "dark" ? "#0a0f1e" : "#f3f5f9";
   if (els.themeToggle) {
     els.themeToggle.setAttribute("aria-label", value === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro");
   }
@@ -503,12 +499,19 @@ function applyTheme(theme, persist = true) {
    Semester (cuatrimestre)
    -------------------------------------------------------------------------- */
 
-function readSemester() {
-  try {
-    return localStorage.getItem(LS_SEMESTER) === "2" ? 2 : 1;
-  } catch {
-    return 1;
+// The term of the device date.  With weekly data the second term starts on
+// the Monday of its first teaching week (moved to this academic year), so
+// January exams still count as the first term; summer belongs to the
+// second until August, when the next course begins.
+function semesterForToday() {
+  const today = todayUtc();
+  const firstOfSecond = (state.term?.calendar ?? []).find((week) => week.semester === 2);
+  if (firstOfSecond) {
+    const academicStart = Date.UTC(academicYearStart(today), 7, 1);
+    return today >= weekInCurrentYear(firstOfSecond.id) && today >= academicStart ? 2 : 1;
   }
+  const month = today.getUTCMonth();
+  return month >= 1 && month <= 6 ? 2 : 1;
 }
 
 function renderSemesterToggle() {
@@ -520,13 +523,11 @@ function renderSemesterToggle() {
 }
 
 function setSemester(semester, { announce = true } = {}) {
+  // A manual switch lasts for the visit; the next one starts on today's term.
   state.semester = semester === 2 ? 2 : 1;
-  try {
-    localStorage.setItem(LS_SEMESTER, String(state.semester));
-  } catch {
-    /* ignore */
-  }
   renderSemesterToggle();
+  // Each term has its own weeks: go back to the one matching today.
+  state.weekAuto = true;
   if (!state.planSubjectIds.length) return;
   state.validation = null;
   state.validationKey = null;
@@ -555,17 +556,36 @@ function bindEvents() {
 
   els.degreeGrid.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-year]");
-    if (!button) return;
+    if (!button || button.disabled) return;
+    const yearId = button.dataset.year;
+    const yearIds = yearSubjectIds(yearId) ?? [];
+    // The year already being edited: go back to it with its groups.
+    if (yearIds.length && sameSubjectSet(state.planSubjectIds, yearIds)) {
+      resumePlan();
+      return;
+    }
+    // Disabled only while loading, to ignore double clicks; it must be
+    // enabled again afterwards or the year can never be opened again.
     button.disabled = true;
     try {
-      await openYear(button.dataset.year, { groupIds: [], preserveSelection: false });
+      const saved = readSaved();
+      const samePlan = saved && sameSubjectSet(saved.subjectIds, yearIds);
+      await openYear(yearId, {
+        groupIds: samePlan ? saved.groupIds ?? [] : [],
+        autoResult: samePlan ? saved.autoResult ?? null : null,
+        customEvents: samePlan ? saved.customEvents ?? [] : undefined,
+        pinnedGroupIds: samePlan ? saved.pinnedGroupIds ?? [] : undefined,
+        preserveSelection: false,
+      });
     } catch (error) {
       toast(error.message, { type: "error" });
+    } finally {
       button.disabled = false;
     }
   });
 
   els.changeYear.addEventListener("click", showLanding);
+  els.resumePlan.addEventListener("click", resumePlan);
   els.customPlan.addEventListener("click", openPlanDialog);
   els.editPlan.addEventListener("click", openPlanDialog);
   els.planSearch.addEventListener("input", renderPlanOptions);
@@ -638,20 +658,19 @@ function bindEvents() {
   });
 
   els.addEventBtn.addEventListener("click", () => openEventDialog(null));
+  els.weekSelect.addEventListener("change", () => {
+    state.weekId = els.weekSelect.value || null;
+    state.weekAuto = false;
+    clearMove();
+    renderEverything();
+    scheduleValidation();
+  });
   els.eventList.addEventListener("click", (event) => {
     const chip = event.target.closest("[data-event-id]");
     if (chip) openEventDialog(chip.dataset.eventId);
   });
   els.eventForm.addEventListener("submit", saveEventForm);
   els.eventDelete.addEventListener("click", deleteEditingEvent);
-
-  els.freeDuration.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-min]");
-    if (!button) return;
-    state.minFree = Number(button.dataset.min);
-    updateFreeDurationButtons();
-    renderFreeSlots();
-  });
 
   els.exitMove.addEventListener("click", () => {
     clearMove();
@@ -763,6 +782,7 @@ function renderFatal(error) {
 }
 
 function showLanding() {
+  renderResumeButton();
   els.landing.classList.remove("hidden");
   els.workspace.classList.add("hidden");
   els.yearChip.classList.add("hidden");
@@ -858,6 +878,14 @@ async function openPlan(
   if (!semesters.has(state.semester) && semesters.size) setSemester([...semesters][0], { announce: false });
 
   updatePlanHeader();
+  showWorkspace();
+  renderEverything();
+  saveLast();
+  scheduleValidation();
+}
+
+// Swap the landing for the timetable of the plan already in memory.
+function showWorkspace() {
   els.yearChip.classList.remove("hidden");
   els.shareBtn.classList.remove("hidden");
   els.themeToggle.classList.remove("hidden");
@@ -865,11 +893,77 @@ async function openPlan(
   els.landing.classList.add("hidden");
   els.workspace.classList.remove("hidden");
   updatePlanUrl();
-
-  renderEverything();
-  saveLast();
-  scheduleValidation();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// "Volver a mi horario" on the landing: the plan being edited, or else the
+// one saved in this browser.
+function renderResumeButton() {
+  const saved = state.planSubjectIds.length ? null : readSaved();
+  const label = state.planSubjectIds.length
+    ? planChipLabel()
+    : saved
+      ? savedPlanLabel(saved.subjectIds)
+      : "";
+  els.resumePlan.classList.toggle("hidden", !label);
+  els.resumePlanLabel.textContent = label;
+}
+
+// Same wording as the plan chip ("Matemáticas · 2º"), worked out from the
+// degree directory because the saved plan is not loaded yet.
+function savedPlanLabel(subjectIds) {
+  const ids = new Set(subjectIds);
+  const years = [];
+  for (const degree of state.degrees) {
+    for (const year of degree.years) {
+      if ((year.subjects ?? []).some((subject) => ids.has(subject.id))) years.push({ degree, year });
+    }
+  }
+  const degrees = [...new Set(years.map((item) => item.degree))];
+  if (years.length === 1) return `${years[0].degree.short_name} · ${years[0].year.number}º`;
+  if (degrees.length === 1) {
+    return `${degrees[0].short_name} · ${years.map((item) => `${item.year.number}º`).join(" + ")}`;
+  }
+  return `${degrees.map((degree) => degree.short_name).join(" + ")} · ${plural(ids.size, "materia", "materias")}`;
+}
+
+async function resumePlan() {
+  if (state.planSubjectIds.length) {
+    showWorkspace();
+    // The week shown follows today again, as when the app is opened.
+    state.weekAuto = true;
+    renderEverything();
+    return;
+  }
+  const saved = readSaved();
+  if (!saved) return;
+  els.resumePlan.disabled = true;
+  try {
+    await openPlan(saved.subjectIds, {
+      groupIds: saved.groupIds ?? [],
+      autoResult: saved.autoResult ?? null,
+      customEvents: saved.customEvents ?? [],
+      pinnedGroupIds: saved.pinnedGroupIds ?? [],
+    });
+  } catch (error) {
+    if (error?.status === 422) {
+      // A catalogue refresh can invalidate subject ids saved in the browser.
+      try {
+        localStorage.removeItem(LS_LAST);
+      } catch {
+        /* ignore */
+      }
+      renderResumeButton();
+      toast("La matrícula guardada ya no existe en el catálogo actual. Elige las materias de nuevo.", {
+        type: "warn",
+        duration: 6000,
+      });
+      return;
+    }
+    toast(`No se pudo abrir tu horario: ${error.message}`, { type: "error" });
+  } finally {
+    els.resumePlan.disabled = false;
+  }
 }
 
 function updatePlanHeader() {
@@ -1213,12 +1307,13 @@ function scheduleValidation() {
 
 async function refreshValidation() {
   const ids = selectedGroupIds();
+  const week = activeWeekId();
+  const key = `${ids.join(",")}@${week ?? ""}`;
   const token = ++state.validationToken;
   if (!ids.length) {
     state.validation = null;
-    state.validationKey = ids.join(",");
+    state.validationKey = key;
     renderAlerts();
-    renderFreeSlots();
     renderStatus();
     return;
   }
@@ -1229,18 +1324,177 @@ async function refreshValidation() {
       blocked: blockedSlots(),
       custom_events: state.customEvents,
       min_free_minutes: 30,
+      week,
     });
     if (token !== state.validationToken) return;
-    if (ids.join(",") !== selectedGroupIds().join(",")) return;
+    if (key !== `${selectedGroupIds().join(",")}@${activeWeekId() ?? ""}`) return;
     state.validation = result;
-    state.validationKey = ids.join(",");
+    state.validationKey = key;
     renderAlerts();
-    renderFreeSlots();
     renderStatus();
   } catch (error) {
     if (token !== state.validationToken) return;
     toast(`No se pudo validar el horario: ${error.message}`, { type: "error" });
   }
+}
+
+/* --------------------------------------------------------------------------
+   Weeks
+   -------------------------------------------------------------------------- */
+
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// ``weeks`` null means the meeting happens every week.
+function sharesWeek(first, second) {
+  return !first || !second || first.some((week) => second.includes(week));
+}
+
+function inWeek(session, weekId) {
+  return !weekId || !session.weeks || session.weeks.includes(weekId);
+}
+
+// Monday (UTC midnight) of ISO week ``number`` of ``year``.
+function isoMonday(year, number) {
+  const jan4 = Date.UTC(year, 0, 4);
+  const jan4Weekday = new Date(jan4).getUTCDay() || 7;
+  return new Date(jan4 - (jan4Weekday - 1) * DAY_MS + (number - 1) * 7 * DAY_MS);
+}
+
+function isoWeeksInYear(year) {
+  // 28 December always falls in the last ISO week of its year.
+  const dec28 = Date.UTC(year, 11, 28);
+  return Math.round((dec28 - isoMonday(year, 1).getTime()) / (7 * DAY_MS)) + 1;
+}
+
+function academicYearStart(date) {
+  return date.getUTCMonth() >= 7 ? date.getUTCFullYear() : date.getUTCFullYear() - 1;
+}
+
+function todayUtc() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+// Same rule as backend/timeutil.py: the catalogue may describe an earlier
+// academic year, so each week keeps its ISO number in this year's course.
+function weekInCurrentYear(weekId) {
+  const calendar = state.term?.calendar ?? [];
+  const first = calendar[0]?.id ?? weekId;
+  const dataStart = academicYearStart(isoMonday(Number(first.slice(0, 4)), Number(first.slice(6))));
+  const year = Number(weekId.slice(0, 4)) + academicYearStart(todayUtc()) - dataStart;
+  return isoMonday(year, Math.min(Number(weekId.slice(6)), isoWeeksInYear(year)));
+}
+
+function formatWeekDate(weekId) {
+  const monday = weekInCurrentYear(weekId);
+  return `${monday.getUTCDate()} ${MONTHS[monday.getUTCMonth()]}`;
+}
+
+function currentWeekId() {
+  const today = todayUtc();
+  const monday = today.getTime() - ((today.getUTCDay() || 7) - 1) * DAY_MS;
+  return (
+    (state.term?.calendar ?? []).find((week) => weekInCurrentYear(week.id).getTime() === monday)
+      ?.id ?? null
+  );
+}
+
+// Weeks of the term on screen that differ for the chosen groups.  Identical
+// weeks share one entry; the most frequent one is "Horario habitual".
+function weekPatterns() {
+  const weeks = (state.term?.calendar ?? []).filter((week) => week.semester === state.semester);
+  if (!weeks.length) return [];
+  const sessions = selectedGroupIds().flatMap((groupId) => state.groupIndex.get(groupId)?.sessions ?? []);
+  const byKey = new Map();
+  for (const week of weeks) {
+    const ids = sessions.filter((session) => inWeek(session, week.id)).map((session) => session.id);
+    // Weeks in which none of the chosen classes is taught are not offered.
+    if (sessions.length && !ids.length) continue;
+    const key = ids.sort().join(",");
+    if (!byKey.has(key)) byKey.set(key, { weeks: [], sessionIds: new Set(ids) });
+    byKey.get(key).weeks.push(week.id);
+  }
+  const patterns = [...byKey.values()];
+  if (!patterns.length) return [];
+  const usual = patterns.reduce((best, item) => (item.weeks.length > best.weeks.length ? item : best));
+  usual.usual = true;
+  const allWeeks = patterns.flatMap((item) => item.weeks).sort();
+  const first = allWeeks[0];
+  const last = allWeeks[allWeeks.length - 1];
+  for (const pattern of patterns) {
+    pattern.label = weekPatternLabel(pattern, usual, { first, last, alone: patterns.length === 1 });
+  }
+  return [usual, ...patterns.filter((item) => item !== usual)];
+}
+
+function weekPatternLabel(pattern, usual, { first, last, alone }) {
+  if (pattern.usual) {
+    return alone ? "Horario habitual" : `Horario habitual · ${plural(pattern.weeks.length, "semana", "semanas")}`;
+  }
+  const weeks = pattern.weeks;
+  let title;
+  if (weeks.length === 1 && weeks[0] === first) title = "Primera semana";
+  else if (weeks.length === 1 && weeks[0] === last) title = "Última semana";
+  else if (weeks.length === 1) title = `Semana del ${formatWeekDate(weeks[0])}`;
+  else {
+    const dates = weeks.slice(0, 2).map(formatWeekDate).join(", ");
+    title = `${weeks.length} semanas: ${dates}${weeks.length > 2 ? "…" : ""}`;
+  }
+  // Classes are compared by group and hours: the same class in another room
+  // is a room change, not one class more and one less.
+  const slots = (ids) =>
+    new Set(
+      [...ids].map((id) => {
+        const session = state.sessionById.get(id);
+        return session ? `${session.group_id}|${session.day}|${session.start}|${session.end}` : id;
+      }),
+    );
+  const mine = slots(pattern.sessionIds);
+  const theirs = slots(usual.sessionIds);
+  const added = [...mine].filter((slot) => !theirs.has(slot)).length;
+  const removed = [...theirs].filter((slot) => !mine.has(slot)).length;
+  const changes = [];
+  if (added) changes.push(`${plural(added, "clase", "clases")} más`);
+  if (removed) changes.push(`${plural(removed, "clase", "clases")} menos`);
+  if (!changes.length) changes.push("cambio de aula");
+  return `${title} · ${changes.join(", ")}`;
+}
+
+// The week whose classes are on screen, or null when the catalogue has a
+// single typical week.  Keeps ``state.weekId`` pointing at a valid week.
+function activeWeekId() {
+  const patterns = weekPatterns();
+  if (!patterns.length) return null;
+  const offered = patterns.flatMap((pattern) => pattern.weeks);
+  if (state.weekAuto) {
+    const today = currentWeekId();
+    state.weekId = offered.includes(today) ? today : patterns[0].weeks[0];
+  } else if (!offered.includes(state.weekId)) {
+    state.weekId = patterns[0].weeks[0];
+  }
+  return state.weekId;
+}
+
+function renderWeekSelect() {
+  const weekId = activeWeekId();
+  const patterns = weekPatterns();
+  els.weekPicker.classList.toggle("hidden", !weekId);
+  if (!weekId) return;
+  const today = currentWeekId();
+  els.weekSelect.innerHTML = patterns
+    .map((pattern) => {
+      const selected = pattern.weeks.includes(weekId);
+      // The entry of the current week opens on today's week, not its first.
+      const value = selected ? weekId : pattern.weeks.includes(today) ? today : pattern.weeks[0];
+      const label = pattern.weeks.includes(today) ? `${pattern.label} (esta semana)` : pattern.label;
+      return `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+    })
+    .join("");
+  const current = patterns.find((pattern) => pattern.weeks.includes(weekId));
+  els.weekPicker.title = current && !current.usual
+    ? `Semanas: ${current.weeks.map(formatWeekDate).join(", ")}`
+    : "Semana que se muestra";
 }
 
 /* --------------------------------------------------------------------------
@@ -1309,10 +1563,12 @@ function mergeLocalSessions(sessions) {
 function buildLocalSchedule() {
   const rawSessions = [];
   const blocked = blockedSlots();
+  const weekId = activeWeekId();
   for (const groupId of selectedGroupIds()) {
     const group = state.groupIndex.get(groupId);
     if (!group) continue;
     for (const session of group.sessions) {
+      if (!inWeek(session, weekId)) continue;
       const prefersConflict = blocked.some(
         (slot) =>
           session.day === slot.day &&
@@ -1389,7 +1645,7 @@ function minutesToHm(minutes) {
 }
 
 function sessionsOverlap(a, b) {
-  if (a.day !== b.day) return false;
+  if (a.day !== b.day || !sharesWeek(a.weeks, b.weeks)) return false;
   return toMinutes(a.start) < toMinutes(b.end) && toMinutes(b.start) < toMinutes(a.end);
 }
 
@@ -1448,11 +1704,11 @@ function localBlockedConflicts(sessions) {
    -------------------------------------------------------------------------- */
 
 function renderEverything() {
+  renderWeekSelect();
   renderSubjects();
   renderSchedule();
   renderStatus();
   renderAlerts();
-  renderFreeSlots();
   renderEventList();
   renderMovePanel();
 }
@@ -1611,6 +1867,9 @@ function renderStatus() {
       const included = total - (state.autoResult.excluded_subjects?.length ?? 0);
       label = `${included} de ${total} materias`;
       className = "status-pill";
+    } else if (otherWeekConflicts().length) {
+      label = "Sin solapes esta semana";
+      className = "status-pill is-warn";
     } else {
       label = "Sin solapes";
       className = "status-pill";
@@ -1649,6 +1908,32 @@ function missingGroups() {
   return missing;
 }
 
+// Term-wide overlaps (from the API) that do not happen in the week on
+// screen, so a clash in a single special week is still visible.
+function otherWeekConflicts() {
+  const weekId = activeWeekId();
+  if (!weekId || !state.validation?.conflicts) return [];
+  const seen = new Set();
+  const result = [];
+  for (const conflict of state.validation.conflicts) {
+    const left = state.sessionById.get(conflict.left.id);
+    const right = state.sessionById.get(conflict.right.id);
+    if (!left || !right) continue;
+    const weeks = left.weeks && right.weeks
+      ? left.weeks.filter((week) => right.weeks.includes(week))
+      : left.weeks ?? right.weeks;
+    if (!weeks || weeks.includes(weekId)) continue;
+    const key = [conflict.left.subject_name, conflict.left.group_code, conflict.right.subject_name, conflict.right.group_code, conflict.day, weeks.join()].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const when = weeks.length === 1
+      ? `semana del ${formatWeekDate(weeks[0])}`
+      : `${weeks.length} semanas desde el ${formatWeekDate(weeks[0])}`;
+    result.push({ ...conflict, when });
+  }
+  return result;
+}
+
 function renderAlerts() {
   const alerts = [];
   const { conflicts, sessions, eventConflicts } = state.localSchedule;
@@ -1665,6 +1950,20 @@ function renderAlerts() {
         <span class="alert-icon">!</span>
         <div><strong>Hay ${plural(conflicts.length, "solape", "solapes")} en tu semana.</strong>
         <ul>${items.join("")}</ul></div>
+      </div>`);
+  }
+
+  const elsewhere = otherWeekConflicts();
+  if (elsewhere.length) {
+    const items = elsewhere.slice(0, 4).map(
+      (item) =>
+        `<li>${escapeHtml(item.left.subject_name)} (${escapeHtml(item.left.group_code)}) × ${escapeHtml(item.right.subject_name)} (${escapeHtml(item.right.group_code)}) · ${escapeHtml(item.day_label)} ${item.start}–${item.end} · ${escapeHtml(item.when)}</li>`,
+    );
+    alerts.push(`
+      <div class="alert alert-warn">
+        <span class="alert-icon">!</span>
+        <div><strong>${plural(elsewhere.length, "solape", "solapes")} en otras semanas.</strong>
+        <ul>${items.join("")}${elsewhere.length > items.length ? `<li>y ${elsewhere.length - items.length} más</li>` : ""}</ul></div>
       </div>`);
   }
 
@@ -1729,51 +2028,6 @@ function renderAlerts() {
   }
 
   els.alerts.innerHTML = alerts.join("");
-}
-
-/* --------------------------------------------------------------------------
-   Rendering — free slots
-   -------------------------------------------------------------------------- */
-
-function updateFreeDurationButtons() {
-  for (const button of els.freeDuration.querySelectorAll("[data-min]")) {
-    button.classList.toggle("is-active", Number(button.dataset.min) === state.minFree);
-  }
-}
-
-function renderFreeSlots() {
-  if (!selectedCount()) {
-    els.freeSlots.innerHTML = '<p class="empty-copy">Elige algún grupo para ver tus huecos.</p>';
-    return;
-  }
-  if (!state.validation) {
-    els.freeSlots.innerHTML = '<p class="empty-copy">Calculando huecos…</p>';
-    return;
-  }
-  const slots = (state.validation.free_slots || []).filter((slot) => slot.duration_minutes >= state.minFree);
-  if (!slots.length) {
-    els.freeSlots.innerHTML = `<p class="empty-copy">No hay huecos de ${formatDuration(state.minFree)} o más. Prueba con una duración menor o cambia algún grupo.</p>`;
-    return;
-  }
-  const byDay = new Map(DAYS.map((day) => [day, []]));
-  for (const slot of slots) byDay.get(slot.day)?.push(slot);
-  els.freeSlots.innerHTML = DAYS.filter((day) => byDay.get(day).length)
-    .map(
-      (day) => `
-      <div class="free-day">
-        <span class="free-day-name">${DAY_LABELS[day].slice(0, 3)}</span>
-        <span class="free-day-chips">
-          ${byDay
-            .get(day)
-            .map(
-              (slot) =>
-                `<span class="free-chip">${slot.start}–${slot.end}<small>${formatDuration(slot.duration_minutes)}</small></span>`,
-            )
-            .join("")}
-        </span>
-      </div>`,
-    )
-    .join("");
 }
 
 /* --------------------------------------------------------------------------
@@ -2037,6 +2291,11 @@ function describeChanges(changes) {
 
 async function optimizeTimetable() {
   if (!state.planSubjectIds.length) return;
+  // Only the groups already chosen are repaired; nothing new is added.
+  if (!selectedGroupIds().length) {
+    toast("Elige algún grupo antes de resolver solapes.", { type: "warn" });
+    return;
+  }
   els.autoBtn.disabled = true;
   els.autoBtn.querySelector(".spinner").classList.remove("hidden");
   els.autoBtn.querySelector(".btn-label").style.opacity = "0.55";
@@ -2060,8 +2319,9 @@ async function optimizeTimetable() {
     for (const groupId of result.group_ids || []) setGroupSelection(groupId);
     prunePins();
     state.shareId = null;
-    state.validation = result;
-    state.validationKey = (result.group_ids || []).join(",");
+    // The repair covers the whole term; free slots are asked for the week on screen.
+    state.validation = null;
+    state.validationKey = null;
     state.moveSession = null;
     state.moveCandidates = [];
     state.previewCandidate = null;
@@ -2071,15 +2331,14 @@ async function optimizeTimetable() {
 
     renderEverything();
     saveLast();
+    scheduleValidation();
 
     const changes = result.changes || [];
     const changed = result.solver?.changed ?? 0;
     const removed = result.solver?.removed ?? 0;
     const detail = describeChanges(changes);
     if (result.status === "optimized") {
-      const summary = changed
-        ? `Solapes resueltos cambiando ${plural(changed, "grupo", "grupos")}`
-        : "Horario completado sin solapes";
+      const summary = `Solapes resueltos cambiando ${plural(changed, "grupo", "grupos")}`;
       toast(detail ? `${summary}: ${detail}.` : `${summary}.`, { duration: 7000 });
     } else if (result.status === "partial") {
       const dropped = changes

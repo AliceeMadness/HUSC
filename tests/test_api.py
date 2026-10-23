@@ -371,8 +371,13 @@ def test_ics_export() -> None:
     assert response.headers["content-type"].startswith("text/calendar")
     assert "attachment" in response.headers["content-disposition"]
     assert "BEGIN:VCALENDAR" in response.text
-    assert "RRULE:FREQ=WEEKLY" in response.text
     assert "END:VCALENDAR" in response.text
+    # Classes with known weeks get one dated event per week instead of a
+    # weekly rule, so special weeks are exported as they are taught.
+    blocks = client.post("/api/schedules/validate", json={"group_ids": [group_id]}).json()["blocks"]
+    expected = sum(len(block["weeks"]) if block["weeks"] else 1 for block in blocks)
+    assert response.text.count("BEGIN:VEVENT") == expected
+    assert ("RRULE:FREQ=WEEKLY" in response.text) == any(not block["weeks"] for block in blocks)
 
 
 def test_ics_export_includes_extracurricular_events() -> None:
@@ -562,3 +567,42 @@ def test_optimize_resolves_clash_between_groups_of_same_type() -> None:
     assert pinned in payload["group_ids"]
     final = [store.group_by_id[group_id] for group_id in payload["group_ids"]]
     assert len(final) == len(set(payload["group_ids"]))
+
+
+def test_optimize_only_touches_chosen_subjects_and_types() -> None:
+    # Picking only the CLE of each subject must not bring in its CLIL/CLIS,
+    # and subjects without any group stay empty.
+    year_id = "year-matematicas-fisica-3"
+    subject_ids = store.year_by_id[year_id].subject_ids
+    lectures = [
+        group_id
+        for group_id in _first_groups(year_id)
+        if store.group_by_id[group_id].type.value == "expositive"
+    ]
+    chosen = lectures[:-1]
+    response = client.post(
+        "/api/schedules/optimize",
+        json={"subject_ids": subject_ids, "group_ids": chosen},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    allowed = {
+        (store.group_by_id[group_id].subject_id, store.group_by_id[group_id].type)
+        for group_id in chosen
+    }
+    result = {
+        (store.group_by_id[group_id].subject_id, store.group_by_id[group_id].type)
+        for group_id in payload["group_ids"]
+    }
+    assert result <= allowed
+    assert all(change["from_group_id"] for change in payload["changes"])
+
+
+def test_optimize_without_groups_changes_nothing() -> None:
+    year_id = "year-matematicas-1"
+    payload = client.post(
+        "/api/schedules/optimize",
+        json={"subject_ids": store.year_by_id[year_id].subject_ids, "group_ids": []},
+    ).json()
+    assert payload["status"] == "unchanged"
+    assert payload["group_ids"] == []

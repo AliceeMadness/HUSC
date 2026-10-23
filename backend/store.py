@@ -94,9 +94,10 @@ class CatalogStore:
             "room_kind": room.kind,
             "building_id": session.building_id,
             "building_name": building.name,
+            "building_short_name": building.short_name or building.name,
             "campus_name": campus.name if campus else None,
             "instructors": list(session.instructors),
-            "weeks": session.weeks.model_dump(mode="json") if session.weeks else None,
+            "weeks": session.weeks,
             "note": session.note,
             "legacy_slot": session.legacy.slot if session.legacy else None,
         }

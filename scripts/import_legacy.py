@@ -17,9 +17,10 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import sys
 from collections import OrderedDict, defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +43,7 @@ from backend.models import (  # noqa: E402
     Room,
     SourceInfo,
     Subject,
+    TeachingWeek,
     Term,
 )
 from backend.timeutil import (  # noqa: E402
@@ -150,9 +152,14 @@ def room_kind(name: str) -> str:
     return "classroom"
 
 
-def session_id(group_id: str, day: str, start: str, room_id: str) -> str:
-    raw = f"{group_id}|{day}|{start}|{room_id}".encode("utf-8")
-    return f"ses-{hashlib.sha1(raw).hexdigest()[:10]}"
+def session_id(group_id: str, day: str, start: str, room_id: str, end: str | None = None) -> str:
+    # ``end`` only takes part when two meetings share group, day, start and
+    # room but end at different times (in different weeks); older ids stay.
+    raw = f"{group_id}|{day}|{start}|{room_id}" + (f"|{end}" if end else "")
+    return f"ses-{hashlib.sha1(raw.encode('utf-8')).hexdigest()[:10]}"
+
+
+WEEK_RE = re.compile(r"^\d{4}-W\d{2}$")
 
 
 def import_files(
@@ -162,6 +169,7 @@ def import_files(
     extra_notes: list[str] | None = None,
     course_map: dict[str, dict] | None = None,
     term_info: dict | None = None,
+    building_short_names: dict[str, str] | None = None,
 ) -> Catalog:
     """Build the catalogue from a normalized legacy CSV.
 
@@ -186,7 +194,10 @@ def import_files(
     rooms: "OrderedDict[str, Room]" = OrderedDict()
     buildings: "OrderedDict[str, Building]" = OrderedDict()
     sessions: "OrderedDict[str, ClassSession]" = OrderedDict()
-    seen_sessions: dict[tuple[str, str, str, str], str] = {}
+    seen_sessions: dict[tuple[str, str, str, str, str], str] = {}
+    # Weeks each meeting was seen in; a row without week means "every week".
+    session_weeks: dict[str, set[str] | None] = {}
+    calendar: dict[str, int] = {}
 
     subject_order: dict[str, list[str]] = {}
     forms_subject_groups: dict[tuple[str, str], list[str]] = {}
@@ -221,6 +232,13 @@ def import_files(
                 room_name = "Sin aula"
             semester_raw = (row.get("Cuatrimestre") or "1").strip()
             semester = int(semester_raw) if semester_raw in {"1", "2"} else 1
+            week = (row.get("Semana") or "").strip() or None
+            if week and not WEEK_RE.match(week):
+                warnings.append(f"fila {row_number}: semana no válida {week!r}, se ignora")
+                week = None
+            if week:
+                if calendar.setdefault(week, semester) != semester:
+                    warnings.append(f"fila {row_number}: la semana {week} está en dos cuatrimestres")
 
             meta = course_map.get(course_label) if course_map else None
             if meta:
@@ -273,6 +291,7 @@ def import_files(
                     id=building_id,
                     name=building_name,
                     campus_id=campus_id,
+                    short_name=(building_short_names or {}).get(building_name),
                 )
 
             room_id = f"room-{building_id.removeprefix('bld-')}-{slugify(room_name)}"
@@ -311,7 +330,13 @@ def import_files(
                 )
 
             group_type = groups[group_id].type
-            key = (group_id, day, start, room_id)
+            key = (group_id, day, start, end, room_id)
+            if key in seen_sessions and week:
+                # The same meeting in another week: remember the week.
+                known = session_weeks[seen_sessions[key]]
+                if known is not None:
+                    known.add(week)
+                continue
             if key in seen_sessions:
                 warnings.append(
                     f"fila {row_number}: sesión duplicada de {group_code} "
@@ -320,8 +345,11 @@ def import_files(
                 )
                 continue
 
+            new_id = session_id(group_id, day, start, room_id)
+            if new_id in sessions:
+                new_id = session_id(group_id, day, start, room_id, end)
             session = ClassSession(
-                id=session_id(group_id, day, start, room_id),
+                id=new_id,
                 subject_id=subject_id,
                 group_id=group_id,
                 type=group_type,
@@ -337,6 +365,12 @@ def import_files(
             )
             sessions[session.id] = session
             seen_sessions[key] = session.id
+            session_weeks[session.id] = {week} if week else None
+
+    week_order = sorted(calendar)
+    for sid, seen_weeks in session_weeks.items():
+        if seen_weeks is not None:
+            sessions[sid].weeks = [item for item in week_order if item in seen_weeks]
 
     # ---- Cross-check forms_data.json against the CSV -----------------------
     # The USC sync supplies its own explicit course map and may include degrees
@@ -429,6 +463,10 @@ def import_files(
             for second in group_sessions[index + 1 :]:
                 if first.day != second.day:
                     continue
+                if first.weeks is not None and second.weeks is not None and not (
+                    set(first.weeks) & set(second.weeks)
+                ):
+                    continue
                 if parse_hm(first.start) < parse_hm(second.end) and parse_hm(second.start) < parse_hm(first.end):
                     warnings.append(
                         f"solapamiento interno en {group_id}: "
@@ -449,10 +487,19 @@ def import_files(
             "El CSV de origen no incluye edificio ni tipo de sesión: el edificio se infiere "
             "del grado y el tipo, del prefijo del grupo (CLE, CLIL, CLIS)."
         )
+    if calendar:
+        week_note = (
+            f"Se han descargado {len(calendar)} semanas lectivas. Cada sesión indica en "
+            "weeks las semanas ISO en que se imparte; term.calendar las lista."
+        )
+    else:
+        week_note = (
+            f"Los datos representan una semana tipo (semana {source_week} en las URLs de "
+            "config.yaml). No se codifican semanas concretas: weeks queda a null."
+        )
     notes.extend(
         [
-            f"Los datos representan una semana tipo (semana {source_week} en las URLs de "
-            "config.yaml). No se codifican semanas concretas: weeks queda a null.",
+            week_note,
             "Las horas L09/M09/... se han descompuesto en day (mon..fri) y start/end HH:MM. "
             "El slot original se conserva en legacy.slot.",
         ]
@@ -472,6 +519,14 @@ def import_files(
             day_start=term_meta.get("day_start", "08:00"),
             day_end=term_meta.get("day_end", "21:00"),
             weeks=int(term_meta.get("weeks", 15)),
+            calendar=[
+                TeachingWeek(
+                    id=week,
+                    semester=calendar[week],
+                    monday=date.fromisocalendar(int(week[:4]), int(week[6:]), 1),
+                )
+                for week in week_order
+            ],
         ),
         source=SourceInfo(
             legacy_csv=str(csv_path.resolve().relative_to(ROOT)).replace("\\", "/")

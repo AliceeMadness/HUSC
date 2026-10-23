@@ -20,7 +20,8 @@ import re
 import sqlite3
 import sys
 from collections import OrderedDict
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -75,12 +76,52 @@ def semester_url(url: str, week: str | None) -> str:
     return WEEK_PATH_RE.sub(f"/{week.strip('/')}", url, count=1)
 
 
-def configured_semesters(config: dict) -> list[dict]:
+def week_monday(week: str) -> date:
+    """Monday of a widget week path such as ``25/43``."""
+
+    year, number = (int(part) for part in week.strip("/").split("/"))
+    return date.fromisocalendar(2000 + year if year < 100 else year, number, 1)
+
+
+def week_id(week: str) -> str:
+    """ISO id (``2025-W43``) of a widget week path (``25/43``)."""
+
+    iso = week_monday(week).isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
+def week_range(first: str, last: str) -> list[str]:
+    """Widget week paths from ``first`` to ``last`` inclusive, across new year."""
+
+    current, end = week_monday(first), week_monday(last)
+    if end < current:
+        raise ValueError(f"Rango de semanas invertido: {first} > {last}")
+    weeks = []
+    while current <= end:
+        iso = current.isocalendar()
+        weeks.append(f"{iso.year % 100}/{iso.week}")
+        current += timedelta(days=7)
+    return weeks
+
+
+def configured_semesters(config: dict, *, single_week: bool = False) -> list[dict]:
+    """Semesters with the list of weeks to download.
+
+    Without ``first_week``/``last_week`` (or with ``single_week``) a semester
+    is downloaded as one typical week, as older configs did.
+    """
+
     semesters = (config.get("term") or {}).get("semesters") or [{"number": 1}]
-    return [
-        {"number": int(item.get("number", 1)), "week": str(item.get("week") or "") or None}
-        for item in semesters
-    ]
+    result = []
+    for item in semesters:
+        week = str(item.get("week") or "") or None
+        first, last = item.get("first_week"), item.get("last_week")
+        if first and last and not single_week:
+            weeks = week_range(str(first), str(last))
+        else:
+            weeks = [week]
+        result.append({"number": int(item.get("number", 1)), "week": week, "weeks": weeks})
+    return result
 
 
 def _norm_text(value: str) -> str:
@@ -128,10 +169,13 @@ def parse_calendar_html(html: str, course_label: str) -> list[dict]:
                 if group_match:
                     group = group_match.group(1).replace("_", "").upper()
                     room_match = ROOM_RE.search(text)
+                    # Rooms such as "IA.01" or "LB 5" are not prefixed with
+                    # "Aula": whatever follows the group code is the room.
+                    rest = _norm_text(text[group_match.end():])
                     room = (
                         f"Aula {_norm_text(room_match.group(1))}"
                         if room_match
-                        else None
+                        else rest or None
                     )
                     groups.append((group, room))
 
@@ -177,8 +221,17 @@ def _calendar_fragment(payload: list[dict]) -> str | None:
     return None
 
 
-def fetch_course(url: str, course_label: str, timeout: float = 30.0) -> list[dict]:
-    response = httpx.post(
+def fetch_course(
+    url: str,
+    course_label: str,
+    timeout: float = 30.0,
+    *,
+    client: httpx.Client | None = None,
+    allow_empty: bool = False,
+) -> list[dict]:
+    """Rows of one widget week.  ``allow_empty`` accepts weeks without classes."""
+
+    response = (client or httpx).post(
         url,
         data=USC_PAYLOAD,
         headers=USC_HEADERS,
@@ -188,10 +241,13 @@ def fetch_course(url: str, course_label: str, timeout: float = 30.0) -> list[dic
     response.raise_for_status()
     payload = response.json()
     html = _calendar_fragment(payload)
+    if html is None and allow_empty:
+        # Holiday and exam weeks come back without a calendar at all.
+        return []
     if html is None:
         raise ValueError("La respuesta AJAX no contenía #course-detail-controller")
     rows = parse_calendar_html(html, course_label)
-    if not rows:
+    if not rows and not allow_empty:
         raise ValueError("El calendario se descargó pero no produjo sesiones")
     return rows
 
@@ -199,6 +255,32 @@ def fetch_course(url: str, course_label: str, timeout: float = 30.0) -> list[dic
 def load_config(path: Path = CONFIG_PATH) -> dict:
     with path.open(encoding="utf-8") as handle:
         return yaml.safe_load(handle) or {}
+
+
+def building_rules(config: dict) -> list[tuple[re.Pattern[str], str]]:
+    """``(room pattern, building name)`` pairs from ``config.yaml``."""
+
+    return [
+        (re.compile(pattern), building["name"])
+        for building in config.get("buildings") or []
+        for pattern in building.get("rooms") or []
+    ]
+
+
+def building_for_room(
+    room: str, default: str, rules: list[tuple[re.Pattern[str], str]]
+) -> str:
+    """The building of ``room``: the first matching rule, else the source's."""
+
+    return next((name for pattern, name in rules if pattern.search(room or "")), default)
+
+
+def building_short_names(config: dict) -> dict[str, str]:
+    return {
+        building["name"]: building["short_name"]
+        for building in config.get("buildings") or []
+        if building.get("short_name")
+    }
 
 
 SYNTHETIC_SUBJECTS = {
@@ -301,7 +383,17 @@ def write_legacy_csv(rows: list[dict], path: Path = CSV_PATH) -> None:
     with path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
         writer.writerow(
-            ["Curso", "Slot", "Asignatura", "Grupo", "Aula", "Hora", "Edificio", "Cuatrimestre"]
+            [
+                "Curso",
+                "Slot",
+                "Asignatura",
+                "Grupo",
+                "Aula",
+                "Hora",
+                "Edificio",
+                "Cuatrimestre",
+                "Semana",
+            ]
         )
         # First-semester rows go first so annual subjects keep their historical ids.
         for row in sorted(rows, key=lambda item: item.get("semester", 1)):
@@ -315,6 +407,7 @@ def write_legacy_csv(rows: list[dict], path: Path = CSV_PATH) -> None:
                     f"{row['start']}-{row['end']}",
                     row.get("building") or "",
                     row.get("semester", 1),
+                    row.get("week") or "",
                 ]
             )
 
@@ -343,11 +436,16 @@ def init_db(path: Path = DB_PATH) -> sqlite3.Connection:
             group_code TEXT NOT NULL,
             room TEXT,
             source TEXT NOT NULL,
+            week TEXT,
             FOREIGN KEY (run_id) REFERENCES sync_runs(id)
         );
         CREATE INDEX IF NOT EXISTS idx_sessions_run ON sessions(run_id);
         """
     )
+    # Databases created before weekly sync have no week column.
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(sessions)")}
+    if "week" not in columns:
+        connection.execute("ALTER TABLE sessions ADD COLUMN week TEXT")
     return connection
 
 
@@ -385,9 +483,27 @@ def sync(
     catalog_path: Path = CATALOG_PATH,
     force_synthetic: bool = False,
     timeout: float = 30.0,
+    single_week: bool = False,
+    workers: int = 8,
 ) -> dict:
     config = load_config(config_path)
-    semesters = configured_semesters(config)
+    semesters = configured_semesters(config, single_week=single_week)
+    client = httpx.Client(timeout=timeout, follow_redirects=True)
+
+    def fetch_week(url: str, week: str | None, course_label: str, weekly: bool) -> list[dict]:
+        last_error: Exception | None = None
+        for _ in range(3):
+            try:
+                return fetch_course(
+                    semester_url(url, week),
+                    course_label,
+                    timeout=timeout,
+                    client=client,
+                    allow_empty=weekly,
+                )
+            except Exception as error:  # noqa: BLE001 - retried, then reported
+                last_error = error
+        raise last_error  # type: ignore[misc]
     forms = json.loads(forms_path.read_text(encoding="utf-8"))
     degrees = config.get("degrees") or []
     if not degrees:
@@ -430,23 +546,43 @@ def sync(
                 for semester in semesters:
                     semester_rows: list[dict] = []
                     semester_errors: list[str] = []
+                    weekly = len(semester["weeks"]) > 1
                     for source in sources:
                         url = (source.get("url") or "").strip()
                         building = source.get("building") or default_building
                         if not url:
                             continue
-                        try:
-                            fetched = fetch_course(
-                                semester_url(url, semester["week"]), course_label, timeout=timeout
+                        failed_weeks: list[str] = []
+                        last_error = ""
+                        with ThreadPoolExecutor(max_workers=workers) as pool:
+                            futures = [
+                                (week, pool.submit(fetch_week, url, week, course_label, weekly))
+                                for week in semester["weeks"]
+                            ]
+                            for week, future in futures:
+                                try:
+                                    fetched = future.result()
+                                except Exception as error:  # noqa: BLE001 - fallback per course
+                                    failed_weeks.append(week or "")
+                                    last_error = f"{type(error).__name__}: {error}"
+                                    continue
+                                for row in fetched:
+                                    row["course"] = course_label
+                                    row["building"] = building
+                                    row["source"] = "usc"
+                                    row["semester"] = semester["number"]
+                                    # A single typical week stands for every week.
+                                    row["week"] = week_id(week) if weekly and week else None
+                                semester_rows.extend(fetched)
+                        if len(failed_weeks) == len(semester["weeks"]):
+                            semester_errors.append(last_error)
+                        elif failed_weeks:
+                            notes.append(
+                                f"{course_label}: {semester['number']}C sin las semanas "
+                                f"{', '.join(failed_weeks)} ({last_error})"
                             )
-                            for row in fetched:
-                                row["course"] = course_label
-                                row["building"] = building
-                                row["source"] = "usc"
-                                row["semester"] = semester["number"]
-                            semester_rows.extend(fetched)
-                        except Exception as error:  # noqa: BLE001 - fallback per course
-                            semester_errors.append(f"{type(error).__name__}: {error}")
+                    if weekly and not semester_rows and not semester_errors:
+                        semester_errors.append("ninguna semana del rango tiene clases")
                     if semester["number"] == 1:
                         course_rows, source_errors = semester_rows, semester_errors
                     elif semester_errors:
@@ -486,6 +622,10 @@ def sync(
     if not rows:
         raise RuntimeError("No se pudo obtener ninguna sesión (ni real ni sintética)")
 
+    rules = building_rules(config)
+    for row in rows:
+        row["building"] = building_for_room(row.get("room", ""), row.get("building") or "", rules)
+
     mode = (
         "live"
         if live_courses and not synthetic_courses
@@ -505,8 +645,8 @@ def sync(
         connection.executemany(
             """
             INSERT INTO sessions
-                (run_id, course, day, start, end, subject, group_code, room, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (run_id, course, day, start, end, subject, group_code, room, source, week)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -519,6 +659,7 @@ def sync(
                     row["group"],
                     row["room"],
                     row.get("source", "synthetic"),
+                    row.get("week"),
                 )
                 for row in rows
             ],
@@ -548,6 +689,7 @@ def sync(
         extra_notes=[synthetic_note, *notes],
         course_map=course_map,
         term_info=config.get("term"),
+        building_short_names=building_short_names(config),
     )
 
     return {
@@ -556,6 +698,7 @@ def sync(
         "courses_live": live_courses,
         "courses_synthetic": synthetic_courses,
         "sessions": len(rows),
+        "weeks": len(catalog.term.calendar),
         "csv": str(csv_path),
         "db": str(db_path),
         "catalog": str(catalog_path),
