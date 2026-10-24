@@ -77,8 +77,9 @@ async function init() {
     brandLink: document.getElementById("brand-link"),
     changeYear: document.getElementById("change-year"),
     customPlan: document.getElementById("custom-plan"),
-    resumePlan: document.getElementById("resume-plan"),
-    resumePlanLabel: document.getElementById("resume-plan-label"),
+    configurePlan: document.getElementById("configure-plan"),
+    configurePlanLabel: document.getElementById("configure-plan-label"),
+    degreeSearch: document.getElementById("degree-search"),
     editPlan: document.getElementById("edit-plan"),
     addEventBtn: document.getElementById("add-event-btn"),
     weekPicker: document.getElementById("week-picker"),
@@ -94,6 +95,7 @@ async function init() {
     eventLocation: document.getElementById("event-location"),
     eventDelete: document.getElementById("event-delete"),
     yearTitle: document.getElementById("year-title"),
+    upcoming: document.getElementById("upcoming"),
     yearSubtitle: document.getElementById("year-subtitle"),
     subjects: document.getElementById("subjects"),
     selectionCount: document.getElementById("selection-count"),
@@ -124,6 +126,9 @@ async function init() {
   applyTheme(preferredTheme, false);
   renderSemesterToggle();
   bindEvents();
+  // "Próximamente" follows the clock: appear an hour before, update the
+  // countdown, leave when the class starts.
+  window.setInterval(renderUpcoming, 30 * 1000);
 
   try {
     const [meta, directory] = await Promise.all([api.health(), api.degrees()]);
@@ -171,9 +176,9 @@ async function init() {
       });
       return;
     }
-    // The app always opens on the HUSC presentation; a saved timetable is
-    // one click away through "Ir a mi horario".  Only links that point
-    // at something (a shared timetable, a plan or a year) skip it.
+    // The app always opens on the HUSC presentation, where the hero button
+    // starts a plan or goes back to the saved one.  Only links that point at
+    // something (a shared timetable, a plan or a year) skip it.
     showLanding();
   } catch (error) {
     if (error?.status === 422) {
@@ -508,7 +513,7 @@ function semesterForToday() {
 function renderSemesterToggle() {
   if (!els.semesterToggle) return;
   const other = state.semester === 1 ? 2 : 1;
-  els.semesterLabel.textContent = `${state.semester}C`;
+  els.semesterLabel.textContent = `${state.semester}º Cuatrimestre`;
   els.semesterToggle.setAttribute("aria-label", `Cambiar al ${SEMESTER_NAMES[other]}`);
   els.semesterToggle.title = `Viendo el ${SEMESTER_NAMES[state.semester]}. Pulsa para ver el ${SEMESTER_NAMES[other]}.`;
 }
@@ -540,20 +545,17 @@ function bindEvents() {
 
   els.brandLink.addEventListener("click", (event) => {
     event.preventDefault();
-    if (state.planSubjectIds.length) showLanding();
+    if (state.planSubjectIds.length) goHome();
     else window.scrollTo({ top: 0, behavior: "smooth" });
   });
+
+  els.degreeSearch.addEventListener("input", renderLanding);
 
   els.degreeGrid.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-year]");
     if (!button || button.disabled) return;
     const yearId = button.dataset.year;
     const yearIds = yearSubjectIds(yearId) ?? [];
-    // The year already being edited: go back to it with its groups.
-    if (yearIds.length && sameSubjectSet(state.planSubjectIds, yearIds)) {
-      resumePlan();
-      return;
-    }
     // Disabled only while loading, to ignore double clicks; it must be
     // enabled again afterwards or the year can never be opened again.
     button.disabled = true;
@@ -574,9 +576,9 @@ function bindEvents() {
     }
   });
 
-  els.changeYear.addEventListener("click", showLanding);
-  els.resumePlan.addEventListener("click", resumePlan);
-  els.customPlan.addEventListener("click", openPlanDialog);
+  els.changeYear.addEventListener("click", goHome);
+  els.configurePlan.addEventListener("click", configurePlan);
+  els.customPlan.addEventListener("click", newPlan);
   els.editPlan.addEventListener("click", openPlanDialog);
   els.planSearch.addEventListener("input", renderPlanOptions);
   els.planClear.addEventListener("click", () => {
@@ -707,7 +709,22 @@ function updateHeroCounts() {
 }
 
 function renderLanding() {
-  els.degreeGrid.innerHTML = state.degrees
+  // The search keeps the list usable as more degrees are added.
+  // Every typed word must start a word of the degree, so "ia" finds
+  // Inteligencia Artificial ("IA") but not "IngenierÍA".
+  const rawQuery = els.degreeSearch.value.trim();
+  const terms = normalizeSearch(rawQuery).split(/[^a-z0-9]+/).filter(Boolean);
+  const degrees = state.degrees.filter((degree) => {
+    const words = normalizeSearch(`${degree.name} ${degree.short_name}`).split(/[^a-z0-9]+/);
+    return terms.every((term) => words.some((word) => word.startsWith(term)));
+  });
+  if (!degrees.length) {
+    els.degreeGrid.innerHTML = `
+      <p class="degree-empty">Ningún grado coincide con <strong>«${escapeHtml(rawQuery)}»</strong>.
+      Prueba con otra palabra o usa «Nueva matrícula» para buscar asignaturas sueltas.</p>`;
+    return;
+  }
+  els.degreeGrid.innerHTML = degrees
     .map((degree) => {
       const subjects = degree.years.reduce((sum, year) => sum + year.subject_count, 0);
       const years = degree.years
@@ -747,7 +764,7 @@ function renderFatal(error) {
 }
 
 function showLanding() {
-  renderResumeButton();
+  renderConfigureButton();
   els.landing.classList.remove("hidden");
   els.workspace.classList.add("hidden");
   els.yearChip.classList.add("hidden");
@@ -860,38 +877,49 @@ function showWorkspace() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// "Ir a mi horario" on the landing: the plan being edited, or else the
-// one saved in this browser.
-function renderResumeButton() {
-  const saved = state.planSubjectIds.length ? null : readSaved();
-  const label = state.planSubjectIds.length
-    ? planChipLabel()
-    : saved
-      ? savedPlanLabel(saved.subjectIds)
-      : "";
-  els.resumePlan.classList.toggle("hidden", !label);
-  els.resumePlanLabel.textContent = label;
+// "Nueva matrícula" forgets the plan entirely: subjects, chosen and pinned
+// groups and extracurricular activities, in memory and in this browser.
+function resetPlan() {
+  state.planSubjectIds = [];
+  state.customEvents = [];
+  state.editingEventId = null;
+  state.planDraft = new Set();
+  state.selected = {};
+  state.pinnedGroupIds = new Set();
+  state.yearData = null;
+  state.yearId = null;
+  state.subjects = [];
+  state.groupIndex = new Map();
+  state.allSessions = [];
+  state.sessionById = new Map();
+  state.autoResult = null;
+  state.shareId = null;
+  state.validation = null;
+  state.validationKey = null;
+  state.weekAuto = true;
+  try {
+    localStorage.removeItem(LS_LAST);
+  } catch {
+    /* storage can be unavailable in private mode */
+  }
 }
 
-// Same wording as the plan chip ("Matemáticas · 2º"), worked out from the
-// degree directory because the saved plan is not loaded yet.
-function savedPlanLabel(subjectIds) {
-  const ids = new Set(subjectIds);
-  const years = [];
-  for (const degree of state.degrees) {
-    for (const year of degree.years) {
-      if ((year.subjects ?? []).some((subject) => ids.has(subject.id))) years.push({ degree, year });
-    }
-  }
-  const degrees = [...new Set(years.map((item) => item.degree))];
-  if (years.length === 1) return `${years[0].degree.short_name} · ${years[0].year.number}º`;
-  if (degrees.length === 1) {
-    return `${degrees[0].short_name} · ${years.map((item) => `${item.year.number}º`).join(" + ")}`;
-  }
-  return `${degrees.map((degree) => degree.short_name).join(" + ")} · ${plural(ids.size, "materia", "materias")}`;
+// "Volver al Inicio" keeps the timetable; the landing offers to go back to it.
+function goHome() {
+  showLanding();
 }
 
-async function resumePlan() {
+function hasPlan() {
+  return Boolean(state.planSubjectIds.length || readSaved());
+}
+
+// The hero button goes back to the timetable when there is one, or else
+// starts a plan in "Editar matrícula".
+function renderConfigureButton() {
+  els.configurePlanLabel.textContent = hasPlan() ? "Ir a mi horario" : "Configurar mi horario";
+}
+
+async function configurePlan() {
   if (state.planSubjectIds.length) {
     showWorkspace();
     // The week shown follows today again, as when the app is opened.
@@ -900,8 +928,11 @@ async function resumePlan() {
     return;
   }
   const saved = readSaved();
-  if (!saved) return;
-  els.resumePlan.disabled = true;
+  if (!saved) {
+    openPlanDialog();
+    return;
+  }
+  els.configurePlan.disabled = true;
   try {
     await openPlan(saved.subjectIds, {
       groupIds: saved.groupIds ?? [],
@@ -911,13 +942,12 @@ async function resumePlan() {
     });
   } catch (error) {
     if (error?.status === 422) {
-      // A catalogue refresh can invalidate subject ids saved in the browser.
       try {
         localStorage.removeItem(LS_LAST);
       } catch {
         /* ignore */
       }
-      renderResumeButton();
+      renderConfigureButton();
       toast("La matrícula guardada ya no existe en el catálogo actual. Elige las materias de nuevo.", {
         type: "warn",
         duration: 6000,
@@ -926,8 +956,15 @@ async function resumePlan() {
     }
     toast(`No se pudo abrir tu horario: ${error.message}`, { type: "error" });
   } finally {
-    els.resumePlan.disabled = false;
+    els.configurePlan.disabled = false;
   }
+}
+
+// "Nueva matrícula": wipe the current timetable and start an empty one.
+function newPlan() {
+  resetPlan();
+  renderConfigureButton();
+  openPlanDialog();
 }
 
 function updatePlanHeader() {
@@ -935,11 +972,11 @@ function updatePlanHeader() {
   if (!data) return;
   const singleYear = data.years.length === 1 ? data.years[0] : null;
   const termCount = semesterSubjects().length;
+  // The title is always "Mi horario"; the year and degree go underneath.
+  els.yearTitle.textContent = "Mi horario";
   if (singleYear) {
-    els.yearTitle.textContent = singleYear.name;
-    els.yearSubtitle.textContent = `${singleYear.degree_name} · ${plural(termCount, "asignatura", "asignaturas")} en el ${SEMESTER_NAMES[state.semester]}`;
+    els.yearSubtitle.textContent = `${singleYear.name} · ${singleYear.degree_name} · ${plural(termCount, "asignatura", "asignaturas")} en el ${SEMESTER_NAMES[state.semester]}`;
   } else {
-    els.yearTitle.textContent = "Mi matrícula";
     els.yearSubtitle.textContent = `${plural(termCount, "materia", "materias")} en el ${SEMESTER_NAMES[state.semester]} · ${plural(data.years.length, "curso", "cursos")} · ${plural(data.degrees.length, "grado", "grados")}`;
   }
   els.yearChip.textContent = planChipLabel();
@@ -1523,6 +1560,63 @@ function mergeLocalSessions(sessions) {
   );
 }
 
+/* --------------------------------------------------------------------------
+   Upcoming class
+   -------------------------------------------------------------------------- */
+
+const UPCOMING_MINUTES = 60;
+const WEEKDAY_CODES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+// Classes of the chosen groups that start within the next hour, by the
+// device clock: today's real week and term, whatever is on screen.
+function upcomingClasses() {
+  const weekId = currentWeekId();
+  if (!weekId) return null;
+  const semester = (state.term?.calendar ?? []).find((week) => week.id === weekId)?.semester;
+  const now = new Date();
+  const day = WEEKDAY_CODES[now.getDay()];
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const subjects = state.subjects.filter((subject) => (subject.semester ?? 1) === semester);
+  const sessions = groupIdsFor(subjects)
+    .flatMap((groupId) => state.groupIndex.get(groupId)?.sessions ?? [])
+    .filter((session) => session.day === day && inWeek(session, weekId));
+  const soon = mergeLocalSessions(sessions).filter((block) => {
+    const wait = toMinutes(block.start) - nowMinutes;
+    return wait > 0 && wait <= UPCOMING_MINUTES;
+  });
+  if (!soon.length) return null;
+  const first = Math.min(...soon.map((block) => toMinutes(block.start)));
+  return {
+    minutes: first - nowMinutes,
+    blocks: soon.filter((block) => toMinutes(block.start) === first),
+  };
+}
+
+function renderUpcoming() {
+  const upcoming = state.planSubjectIds.length ? upcomingClasses() : null;
+  els.upcoming.classList.toggle("hidden", !upcoming);
+  if (!upcoming) {
+    els.upcoming.innerHTML = "";
+    return;
+  }
+  const wait = upcoming.minutes === 1 ? "en 1 minuto" : `en ${upcoming.minutes} min`;
+  els.upcoming.innerHTML = `
+    <p class="upcoming-kicker">Próximamente <span>· ${wait}</span></p>
+    ${upcoming.blocks
+      .map(
+        (block) => `
+        <div class="upcoming-block">
+          <span class="tt-block-name">${escapeHtml(block.subject_name)}</span>
+          <span class="tt-block-meta">${escapeHtml(block.group_code)} · ${escapeHtml(block.room_name)}</span>
+          <span class="upcoming-foot">
+            <span class="upcoming-time">${block.start}–${block.end}</span>
+            <span class="tt-block-building">${escapeHtml(block.building_short_name || block.building_name || "")} 📍</span>
+          </span>
+        </div>`,
+      )
+      .join("")}`;
+}
+
 function buildLocalSchedule() {
   const rawSessions = [];
   const blocked = blockedSlots();
@@ -1667,6 +1761,7 @@ function localBlockedConflicts(sessions) {
    -------------------------------------------------------------------------- */
 
 function renderEverything() {
+  renderUpcoming();
   renderWeekSelect();
   renderSubjects();
   renderSchedule();

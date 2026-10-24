@@ -188,7 +188,9 @@ svg { display: block; }
 .icon-btn:hover { background: var(--surface); color: var(--ink); transform: translateY(-1px); }
 .icon-btn svg { width: 18px; height: 18px; }
 .icon-btn-small { width: 33px; height: 33px; }
-.semester-label { font-size: 12px; font-weight: 750; letter-spacing: -0.02em; line-height: 1; }
+.semester-label { font-size: 12px; font-weight: 750; letter-spacing: -0.02em; line-height: 1; white-space: nowrap; }
+/* The term switch carries a full label ("1º Cuatrimestre"), so it is a pill. */
+#semester-toggle { width: auto; padding: 0 14px; border-radius: 999px; }
 .icon-btn-small svg { width: 16px; height: 16px; }
 
 [data-theme="light"] .icon-moon { display: none; }
@@ -485,6 +487,18 @@ svg { display: block; }
   letter-spacing: -0.03em;
 }
 .section-heading p { margin-top: 2px; color: var(--muted); font-size: 13px; }
+.degree-search { max-width: 520px; height: 46px; margin-bottom: 20px; border-radius: 13px; background: var(--surface); }
+.degree-search input { font-size: 14px; }
+.degree-empty {
+  grid-column: 1 / -1;
+  padding: 34px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: center;
+}
+.degree-empty strong { color: var(--ink); }
 
 .degree-grid {
   display: grid;
@@ -643,6 +657,36 @@ svg { display: block; }
   line-height: 1;
 }
 .panel-head p { margin-top: 5px; color: var(--muted); font-size: 12.5px; }
+
+/* "Próximamente": the next class, drawn like a timetable block but in the
+   app colour instead of the subject's. */
+.upcoming { flex: 0 0 auto; margin: 0 2px 16px; }
+.upcoming-kicker {
+  margin-bottom: 6px;
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.upcoming-kicker span { color: var(--muted); letter-spacing: 0.04em; text-transform: none; font-weight: 650; }
+.upcoming-block {
+  --subject-color: var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--accent);
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--accent) 13%, var(--surface));
+  line-height: 1.25;
+}
+.upcoming-block + .upcoming-block { margin-top: 6px; }
+.upcoming-block .tt-block-name { font-size: 12.5px; -webkit-line-clamp: 2; }
+.upcoming-block .tt-block-meta { font-size: 10px; }
+.upcoming-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 3px; }
+.upcoming-time { color: var(--ink-soft); font-family: var(--font-mono); font-size: 10px; font-weight: 650; }
+.upcoming-block .tt-block-building { margin-top: 0; font-size: 10px; }
 
 .spinner {
   width: 14px;

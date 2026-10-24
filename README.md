@@ -22,6 +22,9 @@ cada semana del curso y permite compartir o exportar el resultado.
 - **Matrícula personalizada**: mezcla asignaturas de varios cursos y grados. Sirve
   para repetidores (1º + 2º) y para dobles grados (Matemáticas + Física), incluso
   con cursos distintos en cada título.
+- **Tu horario se conserva**: «Volver al Inicio» no borra nada y el botón «Ir a mi
+  horario» de la portada te devuelve a él. Solo «Nueva matrícula» lo borra todo
+  (asignaturas, grupos y extraescolares) para empezar de cero.
 - **Selector de grupos** de expositiva, laboratorio y seminario con aviso
   instantáneo de solapes. Se pueden marcar varios grupos del mismo tipo
   (p. ej. CLE01 y CLE02), pensado para profesores que imparten más de uno.
@@ -37,7 +40,7 @@ cada semana del curso y permite compartir o exportar el resultado.
   ocurren en otras semanas se avisan aparte.
 - **Cuatrimestre automático**: al abrir la app se muestra el cuatrimestre de
   la fecha del dispositivo (el 2C empieza en su primera semana lectiva; enero
-  cuenta como 1C). El botón 1C/2C lo cambia solo durante esa visita.
+  cuenta como 1C). El botón «1º/2º Cuatrimestre» lo cambia solo durante esa visita.
 - **Clases extraescolares** recurrentes: título, día, hora, lugar y color. Se
   pintan en el calendario y avisan de cruces.
 - **Resolver solapes** desde la propia caja roja de solapes: cambia los menos

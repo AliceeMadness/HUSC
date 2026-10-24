@@ -28,11 +28,11 @@
           <svg class="icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         </button>
         <button class="icon-btn hidden" id="semester-toggle" type="button" aria-label="Cambiar a segundo cuatrimestre" title="Cambiar de cuatrimestre">
-          <span class="semester-label" id="semester-label">1C</span>
+          <span class="semester-label" id="semester-label">1º Cuatrimestre</span>
         </button>
-        <button class="btn btn-ghost hidden" id="share-btn" type="button">
+        <button class="btn btn-ghost hidden" id="share-btn" type="button" aria-label="Compartir">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8.6 13.7 15.4 17M15.4 7 8.6 10.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="6" cy="12" r="2.4" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="5.5" r="2.4" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="18.5" r="2.4" stroke="currentColor" stroke-width="1.7"/></svg>
-          Compartir
+          <span>Compartir</span>
         </button>
       </div>
     </header>
@@ -48,10 +48,9 @@
               Nosotros comprobamos los solapes, te enseñamos cada semana
               del curso y te dejamos un horario listo para compartir.
             </p>
-            <button class="btn btn-accent hero-resume hidden" id="resume-plan" type="button">
+            <button class="btn btn-accent hero-resume" id="configure-plan" type="button">
               <span class="hero-resume-copy">
-                <span>Ir a mi horario</span>
-                <small id="resume-plan-label"></small>
+                <span id="configure-plan-label">Configurar mi horario</span>
               </span>
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -99,9 +98,13 @@
             </div>
             <button class="btn btn-ghost" id="custom-plan" type="button">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-              Matrícula personalizada
+              Nueva matrícula
             </button>
           </div>
+          <label class="search-field degree-search">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <input id="degree-search" type="search" placeholder="Busca tu grado: Matemáticas, Física, Informática…" aria-label="Buscar grado" autocomplete="off">
+          </label>
           <div class="degree-grid" id="degree-grid">
             <div class="degree-skeleton"></div>
             <div class="degree-skeleton"></div>
@@ -115,7 +118,7 @@
           </div>
           <div class="feature">
             <span class="feature-icon">◷</span>
-            <div><strong>Semana a semana</strong><p>Mira cada semana del curso y propón mover una clase.</p></div>
+            <div><strong>Semana a semana</strong><p>Mira cada semana del curso, también las especiales.</p></div>
           </div>
           <div class="feature">
             <span class="feature-icon">↗</span>
@@ -129,11 +132,13 @@
           <div class="panel-head">
             <button class="back-link" id="change-year" type="button">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Cambiar plan
+              Volver al Inicio
             </button>
-            <h1 id="year-title">Primero</h1>
+            <h1 id="year-title">Mi horario</h1>
             <p id="year-subtitle">Grado en Matemáticas</p>
           </div>
+
+          <section class="upcoming hidden" id="upcoming" aria-live="polite" aria-label="Próxima clase"></section>
 
           <div class="panel-section-head">
             <h2>Materias y grupos</h2>
