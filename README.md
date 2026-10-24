@@ -5,8 +5,7 @@ Aplicación web para montar el horario semanal de los grados de **Matemáticas**
 dobles grados **Informática + Matemáticas** y **Matemáticas + Física** de la
 Universidade de Santiago de Compostela. Eliges un grupo de expositiva,
 laboratorio y seminario por materia y la aplicación valida solapes, muestra
-cada semana del curso, sugiere dónde mover una clase y permite compartir o
-exportar el resultado.
+cada semana del curso y permite compartir o exportar el resultado.
 
 > **Estado:** prototipo funcional de hackathon. Los datos incluidos son una
 > sincronización semana a semana del curso 2025/26 desde la web de la USC. No
@@ -40,15 +39,11 @@ exportar el resultado.
   la fecha del dispositivo (el 2C empieza en su primera semana lectiva; enero
   cuenta como 1C). El botón 1C/2C lo cambia solo durante esa visita.
 - **Clases extraescolares** recurrentes: título, día, hora, lugar y color. Se
-  pintan en el calendario, bloquean huecos, avisan de cruces y el generador las
-  evita.
-- **Horas fijadas**: un grupo puede marcarse como inamovible. El generador
-  conserva sus horas y el modo «mover» no ofrece alternativas para él.
-- **Generación automática** con un solver de restricciones: minimiza días y
-  huecos, respeta franjas bloqueadas, extraescolares y grupos fijados; si hay
-  optativas incompatibles, devuelve el mayor subconjunto que cabe sin solapes.
-- **Modo «mover una clase»**: al pulsar una clase, busca huecos compatibles para
-  el grupo y para el resto de tu horario, y permite copiar la propuesta.
+  pintan en el calendario y avisan de cruces.
+- **Resolver solapes** desde la propia caja roja de solapes: cambia los menos
+  grupos posibles entre los que ya has elegido.
+- **Grupos fijados**: un clic en una clase fija su grupo (⚑) y «Resolver
+  solapes» no lo toca; otro clic lo desfija.
 - **Compartir** con un enlace corto (se guarda una instantánea en el servidor,
   incluyendo extraescolares y fijaciones).
 - **Exportar** a JSON, calendario `.ics` o PDF mediante impresión.

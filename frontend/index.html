@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#f3f5f9">
   <title>Horario · Constructor de horarios USC</title>
   <meta name="description" content="Elige tus grupos de expositiva, laboratorio y seminario y monta tu horario de la USC sin solapes.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23166b58'/%3E%3Cpath d='M8 9h7v7H8zM17 9h7v7h-7zM8 18h7v7H8zM17 18h7v7h-7z' fill='%23eaf6f1'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000066'/%3E%3Cpath d='M8 9h7v7H8zM17 9h7v7h-7zM8 18h7v7H8zM17 18h7v7h-7z' fill='%23ffffff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
@@ -50,7 +50,7 @@
             </p>
             <button class="btn btn-accent hero-resume hidden" id="resume-plan" type="button">
               <span class="hero-resume-copy">
-                <span>Volver a mi horario</span>
+                <span>Ir a mi horario</span>
                 <small id="resume-plan-label"></small>
               </span>
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -135,23 +135,6 @@
             <p id="year-subtitle">Grado en Matemáticas</p>
           </div>
 
-          <div class="auto-card">
-            <div class="auto-card-top">
-              <span class="auto-kicker">Piloto automático</span>
-              <span class="auto-spark" aria-hidden="true">✦</span>
-            </div>
-            <h2>Arregla tu horario.</h2>
-            <p>Quitamos los solapes de tu horario cambiando los menos grupos posibles. Solo tocamos los grupos que ya has elegido; lo que no choca, se queda como está.</p>
-            <button class="btn btn-accent btn-wide" id="auto-btn" type="button">
-              <span class="btn-label">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5l1.5 4.4 4.5 1.6-4.5 1.6L12 15.5l-1.5-4.4L6 9.5l4.5-1.6L12 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" fill="currentColor"/></svg>
-                Resolver solapes
-              </span>
-              <span class="spinner hidden" aria-hidden="true"></span>
-            </button>
-            <p class="auto-hint" id="auto-hint">Los grupos fijados no se tocan.</p>
-          </div>
-
           <div class="panel-section-head">
             <h2>Materias y grupos</h2>
             <div class="panel-section-actions">
@@ -205,21 +188,6 @@
                 </div>
               </div>
               <div class="event-list" id="event-list"></div>
-            </section>
-
-            <section class="insight-card panel" id="move-card" aria-labelledby="move-title">
-              <div class="insight-head">
-                <div>
-                  <p class="insight-kicker">Modo profesor</p>
-                  <h2 id="move-title">Mover una clase</h2>
-                </div>
-                <button class="icon-btn icon-btn-small hidden" id="exit-move" type="button" aria-label="Salir del modo mover" title="Salir">
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                </button>
-              </div>
-              <div class="move-panel" id="move-panel">
-                <p class="empty-copy">Haz clic en cualquier clase del calendario para ver dónde podría encajar sin solaparse con el resto de tu semana.</p>
-              </div>
             </section>
           </div>
         </div>

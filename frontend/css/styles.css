@@ -21,9 +21,6 @@
   --accent-deep: #000066;
   --accent-soft: #e2ecf7;
   --accent-ink: #ffffff;
-  /* Highlight on the dark USC card ("Resolver solapes"). */
-  --lime: #ffffff;
-  --lime-ink: #000066;
   --danger: #a83b2b;
   --danger-soft: #fbe8e3;
   --warn: #805611;
@@ -647,64 +644,11 @@ svg { display: block; }
 }
 .panel-head p { margin-top: 5px; color: var(--muted); font-size: 12.5px; }
 
-/* Auto card */
-
-.auto-card {
-  position: relative;
-  flex: 0 0 auto;
-  overflow: hidden;
-  padding: 18px;
-  border-radius: 17px;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.14), transparent 55%),
-    linear-gradient(145deg, #004c93 0%, #000066 100%);
-  color: #eef3ff;
-  box-shadow: 0 22px 40px -28px rgba(0, 0, 102, 0.8);
-}
-.auto-card::after {
-  content: "";
-  position: absolute;
-  right: -30px;
-  bottom: -45px;
-  width: 130px;
-  height: 130px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 50%;
-  pointer-events: none;
-}
-.auto-card-top { display: flex; align-items: center; justify-content: space-between; }
-.auto-kicker {
-  color: rgba(238, 243, 255, 0.66);
-  font-size: 9.5px;
-  font-weight: 750;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-.auto-spark { color: var(--lime); font-size: 16px; }
-.auto-card h2 {
-  max-width: 250px;
-  margin-top: 10px;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 1.08;
-  letter-spacing: -0.035em;
-}
-.auto-card p {
-  margin-top: 9px;
-  color: rgba(238, 243, 255, 0.72);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-.auto-card .btn-accent { background: var(--lime); color: var(--lime-ink); box-shadow: none; }
-.auto-card .btn-wide { margin-top: 16px; }
-.auto-card .btn-accent:hover { background: #e2ecf7; }
-.auto-hint { margin-top: 10px; color: rgba(238, 243, 255, 0.6) !important; font-size: 10px !important; }
 .spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(0, 0, 102, 0.25);
-  border-top-color: var(--lime-ink);
+  border: 2px solid color-mix(in oklab, currentColor 25%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -903,6 +847,20 @@ svg { display: block; }
 .alert-info { background: var(--info-soft); border-color: color-mix(in oklab, var(--info) 16%, transparent); color: var(--info); }
 .alert ul { display: flex; flex-wrap: wrap; gap: 3px 12px; margin: 3px 0 0; padding: 0; list-style: none; }
 .alert li::before { content: "·"; margin-right: 5px; opacity: 0.6; }
+/* "Resolver solapes" inside the overlap alert. */
+.alert-action {
+  min-height: 32px;
+  margin-top: 9px;
+  padding: 0 14px;
+  background: var(--danger);
+  color: #ffffff;
+  font-size: 12px;
+}
+.alert-action:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 85%, #000); }
+[data-theme="dark"] .alert-action { color: #1a0d0a; }
+.alert-warn .alert-action { background: var(--warn); }
+.alert-action:disabled { opacity: 0.85; cursor: progress; }
+.alert-note { margin-top: 5px; font-size: 10.5px; opacity: 0.8; }
 
 /* --------------------------------------------------------------------------
    Timetable
@@ -1040,7 +998,6 @@ svg { display: block; }
   box-shadow: inset 0 0 0 1.5px var(--danger);
 }
 .tt-block.is-pref:not(.is-conflict) { box-shadow: inset 0 0 0 1.5px var(--warn); }
-.tt-block.is-moving { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px color-mix(in oklab, var(--accent) 15%, transparent); z-index: 7; }
 .tt-block.is-pinned::after {
   content: "⚑";
   position: absolute;
@@ -1075,31 +1032,6 @@ svg { display: block; }
   line-height: 1.2;
 }
 .tt-block.is-event-conflict { box-shadow: inset 0 0 0 1.5px var(--warn); }
-
-.tt-candidate {
-  position: absolute;
-  z-index: 2;
-  top: calc(var(--offset) * var(--minute-height));
-  height: calc(var(--duration) * var(--minute-height) - 3px);
-  left: 3%;
-  width: 94%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px dashed color-mix(in oklab, var(--accent) 55%, transparent);
-  border-radius: 7px;
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
-  color: var(--accent);
-  font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0;
-  transition: opacity 160ms ease;
-  pointer-events: none;
-}
-.tt.is-moving .tt-candidate { opacity: 1; }
-.tt-candidate.is-active { background: color-mix(in oklab, var(--accent) 18%, transparent); border-style: solid; }
 
 .tt-empty {
   position: absolute;
@@ -1137,7 +1069,7 @@ svg { display: block; }
    Insights
    -------------------------------------------------------------------------- */
 
-.insights { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr); gap: 16px; }
+.insights { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .insight-card { padding: 18px; min-width: 0; }
 .insight-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .insight-kicker { color: var(--muted-2); font-size: 8.5px; font-weight: 750; letter-spacing: 0.14em; text-transform: uppercase; }
@@ -1162,57 +1094,6 @@ svg { display: block; }
 .event-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--event-color); }
 .event-chip small { color: var(--muted); font-size: 8.5px; }
 .event-empty { color: var(--muted); font-size: 10.5px; line-height: 1.45; }
-
-.move-panel { margin-top: 13px; }
-.move-current {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 10px;
-  border-radius: 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-}
-.move-current-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--subject-color); }
-.move-current-main { min-width: 0; }
-.move-current-main strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
-.move-current-main small { display: block; color: var(--muted); font-size: 9.5px; }
-.move-current .icon-btn { margin-left: auto; }
-.move-copy { margin-top: 9px; color: var(--muted); font-size: 10.5px; }
-.candidate-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; max-height: 130px; overflow-y: auto; }
-.candidate-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 5px 8px;
-  border: 1px dashed color-mix(in oklab, var(--accent) 45%, var(--line));
-  border-radius: 7px;
-  background: transparent;
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.candidate-chip:hover, .candidate-chip.is-active { background: var(--accent-soft); border-style: solid; }
-.candidate-chip small { color: var(--accent-deep); opacity: 1; font-size: 8.5px; font-weight: 650; }
-.move-pinned {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 9px;
-  padding: 9px 10px;
-  border: 1px dashed color-mix(in oklab, var(--warn) 40%, var(--line));
-  border-radius: 9px;
-  background: var(--warn-soft);
-  color: var(--warn);
-  font-size: 10.5px;
-  line-height: 1.45;
-}
-.move-pinned strong { font-weight: 750; }
-.move-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.move-actions .btn { min-height: 31px; font-size: 10.5px; padding: 0 10px; }
-.move-more { color: var(--muted-2); font-size: 9.5px; margin-top: 5px; }
 
 /* --------------------------------------------------------------------------
    Dialogs and toast
@@ -1480,7 +1361,6 @@ svg { display: block; }
 
 @media (max-width: 1180px) {
   .workspace { grid-template-columns: 350px minmax(0, 1fr); }
-  .insights { grid-template-columns: 1fr; }
   .timetable-scroll { max-height: 620px; }
 }
 
@@ -1492,7 +1372,6 @@ svg { display: block; }
   .selector-panel { position: static; max-height: none; }
   .subject-list { max-height: 440px; }
   .timetable-scroll { max-height: 640px; }
-  .insights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
@@ -1526,9 +1405,7 @@ svg { display: block; }
   .workspace { padding-top: 12px; }
   .selector-panel { padding: 16px; }
   .panel-head h1 { font-size: 28px; }
-  .auto-card h2 { font-size: 22px; }
   .subject-list { max-height: 400px; }
-  .insights { grid-template-columns: 1fr; }
   .calendar-toolbar { align-items: flex-start; }
   .status-line { gap: 6px; }
   .stat-sep { display: none; }

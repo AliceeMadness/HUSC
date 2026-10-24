@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { DAYS, formatDuration, renderTimetable, toMinutes } from "./timetable.js";
+import { DAYS, renderTimetable, toMinutes } from "./timetable.js";
 
 /* --------------------------------------------------------------------------
    Constants and state
@@ -50,11 +50,8 @@ const state = {
   validation: null,
   validationKey: null,
   autoResult: null,
-  moveSession: null,
-  moveCandidates: [],
-  moveLoading: false,
-  moveToken: 0,
-  previewCandidate: null,
+  // "Resolver solapes" is running (its button lives in the overlap alert).
+  resolving: false,
   validationTimer: null,
   validationToken: 0,
 };
@@ -98,8 +95,6 @@ async function init() {
     eventDelete: document.getElementById("event-delete"),
     yearTitle: document.getElementById("year-title"),
     yearSubtitle: document.getElementById("year-subtitle"),
-    autoBtn: document.getElementById("auto-btn"),
-    autoHint: document.getElementById("auto-hint"),
     subjects: document.getElementById("subjects"),
     selectionCount: document.getElementById("selection-count"),
     conflictPill: document.getElementById("conflict-pill"),
@@ -107,9 +102,6 @@ async function init() {
     daysStat: document.getElementById("days-stat"),
     alerts: document.getElementById("alerts"),
     timetable: document.getElementById("timetable"),
-    moveCard: document.getElementById("move-card"),
-    movePanel: document.getElementById("move-panel"),
-    exitMove: document.getElementById("exit-move"),
     exportBtn: document.getElementById("export-btn"),
     printBtn: document.getElementById("print-btn"),
     shareDialog: document.getElementById("share-dialog"),
@@ -180,7 +172,7 @@ async function init() {
       return;
     }
     // The app always opens on the HUSC presentation; a saved timetable is
-    // one click away through "Volver a mi horario".  Only links that point
+    // one click away through "Ir a mi horario".  Only links that point
     // at something (a shared timetable, a plan or a year) skip it.
     showLanding();
   } catch (error) {
@@ -358,14 +350,15 @@ function openEventDialog(eventId = null) {
   const event = eventId
     ? state.customEvents.find((item) => item.id === eventId)
     : null;
+  const values = event ?? {};
   state.editingEventId = event?.id ?? null;
   els.eventDialogTitle.textContent = event ? "Editar extraescolar" : "Añadir extraescolar";
-  els.eventTitle.value = event?.title ?? "";
-  els.eventDay.value = event?.day ?? "mon";
-  els.eventStart.value = event?.start ?? "18:00";
-  els.eventEnd.value = event?.end ?? "20:00";
-  els.eventLocation.value = event?.location ?? "";
-  const color = safeEventColor(event?.color);
+  els.eventTitle.value = values.title ?? "";
+  els.eventDay.value = values.day ?? "mon";
+  els.eventStart.value = values.start ?? "18:00";
+  els.eventEnd.value = values.end ?? "20:00";
+  els.eventLocation.value = values.location ?? "";
+  const color = safeEventColor(values.color);
   const colorInput = els.eventDialog.querySelector(
     `input[name="event-color"][value="${color}"]`,
   );
@@ -425,7 +418,6 @@ function saveEventForm(event) {
   els.eventDialog.close();
   state.autoResult = null;
   state.validation = null;
-  clearMove();
   renderEverything();
   saveLast();
   scheduleValidation();
@@ -441,7 +433,6 @@ function deleteEditingEvent() {
   els.eventDialog.close();
   state.autoResult = null;
   state.validation = null;
-  clearMove();
   renderEverything();
   saveLast();
   scheduleValidation();
@@ -531,7 +522,6 @@ function setSemester(semester, { announce = true } = {}) {
   if (!state.planSubjectIds.length) return;
   state.validation = null;
   state.validationKey = null;
-  clearMove();
   updatePlanHeader();
   renderEverything();
   scheduleValidation();
@@ -625,7 +615,10 @@ function bindEvents() {
   });
   els.planApply.addEventListener("click", applyPlanDraft);
 
-  els.autoBtn.addEventListener("click", optimizeTimetable);
+  // The "Resolver solapes" button is re-rendered with the alerts.
+  els.alerts.addEventListener("click", (event) => {
+    if (event.target.closest("[data-action='resolve']")) optimizeTimetable();
+  });
 
   els.subjects.addEventListener("click", (event) => {
     const pill = event.target.closest("[data-group-id]");
@@ -653,15 +646,14 @@ function bindEvents() {
     }
     const block = event.target.closest("[data-session-id]");
     if (!block) return;
-    const session = state.localSchedule.sessions.find((item) => item.id === block.dataset.sessionId);
-    if (session) beginMove(session);
+    // A click fixes or frees the group for "Resolver solapes".
+    togglePin(block.dataset.groupId);
   });
 
   els.addEventBtn.addEventListener("click", () => openEventDialog(null));
   els.weekSelect.addEventListener("change", () => {
     state.weekId = els.weekSelect.value || null;
     state.weekAuto = false;
-    clearMove();
     renderEverything();
     scheduleValidation();
   });
@@ -671,33 +663,6 @@ function bindEvents() {
   });
   els.eventForm.addEventListener("submit", saveEventForm);
   els.eventDelete.addEventListener("click", deleteEditingEvent);
-
-  els.exitMove.addEventListener("click", () => {
-    clearMove();
-    renderSchedule();
-    renderMovePanel();
-  });
-
-  els.movePanel.addEventListener("click", (event) => {
-    if (event.target.closest("#toggle-pin")) {
-      togglePin(state.moveSession?.group_id);
-      return;
-    }
-    const candidate = event.target.closest("[data-candidate-start]");
-    if (candidate) {
-      state.previewCandidate = {
-        day: candidate.dataset.candidateDay,
-        start: candidate.dataset.candidateStart,
-        end: candidate.dataset.candidateEnd,
-      };
-      renderSchedule();
-      renderMovePanel();
-      return;
-    }
-    if (event.target.closest("#copy-move")) {
-      copyMoveProposal();
-    }
-  });
 
   els.exportBtn.addEventListener("click", () => {
     if (!selectedGroupIds().length) {
@@ -854,7 +819,6 @@ async function openPlan(
   state.selected = {};
   state.validation = null;
   state.validationKey = null;
-  clearMove();
 
   // Keep already-chosen groups whose subject is still in the new plan.
   for (const [subjectId, types] of Object.entries(previous)) {
@@ -896,7 +860,7 @@ function showWorkspace() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// "Volver a mi horario" on the landing: the plan being edited, or else the
+// "Ir a mi horario" on the landing: the plan being edited, or else the
 // one saved in this browser.
 function renderResumeButton() {
   const saved = state.planSubjectIds.length ? null : readSaved();
@@ -1289,7 +1253,6 @@ function onSelectionChanged() {
   state.validation = null;
   state.validationKey = null;
   prunePins();
-  clearMove();
   renderEverything();
   saveLast();
   scheduleValidation();
@@ -1710,7 +1673,6 @@ function renderEverything() {
   renderStatus();
   renderAlerts();
   renderEventList();
-  renderMovePanel();
 }
 
 function renderSubjects() {
@@ -1822,7 +1784,6 @@ function renderSchedule() {
   if (!state.term) return;
   const schedule = buildLocalSchedule();
   state.localSchedule = schedule;
-  const overlay = mergeCandidateRanges(state.moveCandidates);
   const conflictEventIds = new Set(
     schedule.eventConflicts.map((conflict) => conflict.event.id),
   );
@@ -1835,9 +1796,6 @@ function renderSchedule() {
     sessions: schedule.sessions,
     events,
     term: state.term,
-    candidateSlots: state.moveSession ? overlay : [],
-    movingSessionId: state.moveSession?.id ?? null,
-    activeCandidate: state.previewCandidate,
   });
 }
 
@@ -1949,7 +1907,7 @@ function renderAlerts() {
       <div class="alert alert-danger">
         <span class="alert-icon">!</span>
         <div><strong>Hay ${plural(conflicts.length, "solape", "solapes")} en tu semana.</strong>
-        <ul>${items.join("")}</ul></div>
+        <ul>${items.join("")}</ul>${resolveButton()}</div>
       </div>`);
   }
 
@@ -1963,7 +1921,7 @@ function renderAlerts() {
       <div class="alert alert-warn">
         <span class="alert-icon">!</span>
         <div><strong>${plural(elsewhere.length, "solape", "solapes")} en otras semanas.</strong>
-        <ul>${items.join("")}${elsewhere.length > items.length ? `<li>y ${elsewhere.length - items.length} más</li>` : ""}</ul></div>
+        <ul>${items.join("")}${elsewhere.length > items.length ? `<li>y ${elsewhere.length - items.length} más</li>` : ""}</ul>${conflicts.length ? "" : resolveButton()}</div>
       </div>`);
   }
 
@@ -2031,253 +1989,39 @@ function renderAlerts() {
 }
 
 /* --------------------------------------------------------------------------
-   Rendering — move mode
+   Pinned groups
    -------------------------------------------------------------------------- */
 
-function beginMove(session) {
-  state.moveSession = session;
-  state.previewCandidate = null;
-  state.moveCandidates = [];
-  state.moveLoading = false;
-  renderSchedule();
-  renderMovePanel();
-  els.exitMove.classList.remove("hidden");
-  if (window.innerWidth < 980) {
-    els.moveCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-  if (!isPinnedGroup(session.group_id)) {
-    state.moveLoading = true;
-    renderMovePanel();
-    computeMoveCandidates(session);
-  }
-}
-
-function clearMove() {
-  state.moveSession = null;
-  state.moveCandidates = [];
-  state.previewCandidate = null;
-  state.moveLoading = false;
-  state.moveToken += 1;
-  if (els.exitMove) els.exitMove.classList.add("hidden");
-}
-
-async function computeMoveCandidates(session) {
-  const token = ++state.moveToken;
-  const ids = selectedGroupIds();
-  if (!ids.includes(session.group_id)) ids.push(session.group_id);
-  const ignored = session.source_session_ids?.length
-    ? session.source_session_ids
-    : [session.id];
-  try {
-    const [personal, groupFree] = await Promise.all([
-      api.freeSlots({
-        group_ids: ids,
-        ignore_session_ids: ignored,
-        duration_minutes: session.duration_minutes,
-        blocked: blockedSlots(),
-        custom_events: state.customEvents,
-      }),
-      api.freeSlots({
-        group_ids: [session.group_id],
-        ignore_session_ids: ignored,
-        duration_minutes: session.duration_minutes,
-        blocked: blockedSlots(),
-        custom_events: state.customEvents,
-      }),
-    ]);
-    if (token !== state.moveToken || state.moveSession?.id !== session.id) return;
-    const common = intersectIntervals(personal.slots, groupFree.slots);
-    const candidates = expandCandidates(common, session.duration_minutes, session);
-    state.moveCandidates = candidates;
-    state.moveLoading = false;
-    renderSchedule();
-    renderMovePanel();
-  } catch (error) {
-    if (token !== state.moveToken) return;
-    state.moveLoading = false;
-    state.moveCandidates = [];
-    renderMovePanel();
-    toast(`No se pudieron buscar huecos: ${error.message}`, { type: "error" });
-  }
-}
-
-function intersectIntervals(first, second) {
-  const result = [];
-  for (const a of first) {
-    for (const b of second) {
-      if (a.day !== b.day) continue;
-      const start = Math.max(toMinutes(a.start), toMinutes(b.start));
-      const end = Math.min(toMinutes(a.end), toMinutes(b.end));
-      if (end > start) {
-        result.push({
-          day: a.day,
-          start: minutesToHm(start),
-          end: minutesToHm(end),
-          duration_minutes: end - start,
-        });
-      }
-    }
-  }
-  return result;
-}
-
-function expandCandidates(intervals, duration, current) {
-  const candidates = [];
-  const seen = new Set();
-  for (const interval of intervals) {
-    let cursor = toMinutes(interval.start);
-    const end = toMinutes(interval.end);
-    while (cursor + duration <= end) {
-      const start = minutesToHm(cursor);
-      const key = `${interval.day}-${start}`;
-      if (!seen.has(key) && !(interval.day === current.day && start === current.start)) {
-        seen.add(key);
-        candidates.push({
-          day: interval.day,
-          day_label: DAY_LABELS[interval.day],
-          start,
-          end: minutesToHm(cursor + duration),
-          duration_minutes: duration,
-        });
-      }
-      cursor += 30;
-    }
-  }
-  return candidates.sort(
-    (a, b) => (DAY_ORDER[a.day] ?? 9) - (DAY_ORDER[b.day] ?? 9) || toMinutes(a.start) - toMinutes(b.start),
-  );
-}
-
-function mergeCandidateRanges(candidates) {
-  const byDay = new Map();
-  for (const candidate of candidates) {
-    if (!byDay.has(candidate.day)) byDay.set(candidate.day, []);
-    byDay.get(candidate.day).push({ start: toMinutes(candidate.start), end: toMinutes(candidate.end) });
-  }
-  const result = [];
-  for (const [day, intervals] of byDay) {
-    intervals.sort((a, b) => a.start - b.start);
-    const merged = [];
-    for (const interval of intervals) {
-      const last = merged[merged.length - 1];
-      if (last && interval.start <= last.end) last.end = Math.max(last.end, interval.end);
-      else merged.push({ ...interval });
-    }
-    for (const interval of merged) {
-      result.push({
-        day,
-        start: minutesToHm(interval.start),
-        end: minutesToHm(interval.end),
-        duration_minutes: interval.end - interval.start,
-      });
-    }
-  }
-  return result;
-}
-
-function renderMovePanel() {
-  const session = state.moveSession;
-  if (!session) {
-    els.exitMove.classList.add("hidden");
-    els.movePanel.innerHTML =
-      '<p class="empty-copy">Haz clic en cualquier clase del calendario para ver dónde podría encajar sin solaparse con el resto de tu semana.</p>';
-    return;
-  }
-  els.exitMove.classList.remove("hidden");
-  const header = `
-    <div class="move-current" style="--subject-color:${session.color}">
-      <span class="move-current-dot" style="background:${session.color}" aria-hidden="true"></span>
-      <div class="move-current-main">
-        <strong>${escapeHtml(session.subject_name)}</strong>
-        <small>${escapeHtml(session.day_label)} ${session.start}–${session.end} · ${escapeHtml(session.group_code)} · ${escapeHtml(session.room_name)}</small>
-      </div>
-    </div>`;
-
-  const pinned = isPinnedGroup(session.group_id);
-  const pinButton = `<button class="btn ${pinned ? "btn-quiet" : "btn-ghost"}" type="button" id="toggle-pin">${pinned ? "Quitar fijación" : "Fijar grupo"}</button>`;
-  if (pinned) {
-    els.movePanel.innerHTML = `
-      ${header}
-      <div class="move-pinned"><span aria-hidden="true">⚑</span><span><strong>Grupo fijado.</strong> Sus horas no cambiarán al resolver solapes y no se ofrecen huecos para moverlo.</span></div>
-      <div class="move-actions">${pinButton}</div>`;
-    return;
-  }
-  if (state.moveLoading) {
-    els.movePanel.innerHTML = `${header}<p class="move-copy">Buscando huecos compatibles con el grupo y con tu semana…</p><div class="move-actions">${pinButton}</div>`;
-    return;
-  }
-  if (!state.moveCandidates.length) {
-    els.movePanel.innerHTML = `${header}<p class="move-copy">No hay ningún hueco compatible de ${formatDuration(session.duration_minutes)}. Prueba a desactivar alguna preferencia o a quitar otra clase.</p><div class="move-actions">${pinButton}</div>`;
-    return;
-  }
-
-  const visible = state.moveCandidates.slice(0, 12);
-  const chips = visible
-    .map((candidate) => {
-      const active =
-        state.previewCandidate?.day === candidate.day && state.previewCandidate?.start === candidate.start
-          ? "is-active"
-          : "";
-      return `<button class="candidate-chip ${active}" type="button"
-        data-candidate-day="${candidate.day}"
-        data-candidate-start="${candidate.start}"
-        data-candidate-end="${candidate.end}">${escapeHtml(DAY_LABELS[candidate.day].slice(0, 3))} ${candidate.start}–${candidate.end}</button>`;
-    })
-    .join("");
-  els.movePanel.innerHTML = `
-    ${header}
-    <p class="move-copy">${plural(state.moveCandidates.length, "hueco compatible", "huecos compatibles")} para este grupo. Elige uno para verlo en el calendario.</p>
-    <div class="candidate-list">${chips}</div>
-    ${state.moveCandidates.length > visible.length ? `<p class="move-more">y ${state.moveCandidates.length - visible.length} más</p>` : ""}
-    <div class="move-actions">
-      <button class="btn btn-accent" type="button" id="copy-move">Copiar propuesta</button>
-      ${pinButton}
-    </div>`;
-}
-
+// Clicking a class fixes its group: "Resolver solapes" will not change it.
 function togglePin(groupId) {
   if (!groupId) return;
+  const group = state.groupIndex.get(groupId);
+  const name = group ? `${group.code}` : "Grupo";
   if (state.pinnedGroupIds.has(groupId)) {
     state.pinnedGroupIds.delete(groupId);
-    toast("Grupo desfijado.");
+    toast(`${name} desfijado.`);
   } else {
     state.pinnedGroupIds.add(groupId);
-    toast("Grupo fijado: el generador mantendrá sus horas.");
+    toast(`${name} fijado: «Resolver solapes» no lo cambiará.`);
   }
   prunePins();
-  const session = state.moveSession;
-  if (session && session.group_id === groupId) {
-    state.moveCandidates = [];
-    state.previewCandidate = null;
-    state.moveLoading = false;
-    state.moveToken += 1;
-    if (state.pinnedGroupIds.has(groupId)) {
-      renderMovePanel();
-    } else {
-      state.moveLoading = true;
-      renderMovePanel();
-      computeMoveCandidates(session);
-    }
-  }
   renderSubjects();
   renderSchedule();
   renderStatus();
   saveLast();
 }
 
-async function copyMoveProposal() {
-  const session = state.moveSession;
-  const candidate = state.previewCandidate || state.moveCandidates[0];
-  if (!session || !candidate) return;
-  const text = `${session.subject_name} (${session.group_code}): mover de ${session.day_label} ${session.start}–${session.end} a ${DAY_LABELS[candidate.day]} ${candidate.start}–${candidate.end}. El hueco está libre para el grupo y para el resto de tu horario.`;
-  await copyText(text);
-}
-
 /* --------------------------------------------------------------------------
    Overlap repair
    -------------------------------------------------------------------------- */
 
-const AUTO_HINT = "Los grupos fijados no se tocan.";
+function resolveButton() {
+  return `
+    <button class="btn alert-action" type="button" data-action="resolve" ${state.resolving ? "disabled" : ""}>
+      ${state.resolving ? '<span class="spinner" aria-hidden="true"></span> Buscando el arreglo más pequeño…' : "✦ Resolver solapes"}
+    </button>
+    <p class="alert-note">Cambia los menos grupos posibles entre los que ya has elegido. Los grupos fijados (⚑, clic en la clase) no se tocan.</p>`;
+}
 
 function describeChanges(changes) {
   const moved = changes.filter((change) => change.from_group_id && change.to_group_id);
@@ -2296,10 +2040,9 @@ async function optimizeTimetable() {
     toast("Elige algún grupo antes de resolver solapes.", { type: "warn" });
     return;
   }
-  els.autoBtn.disabled = true;
-  els.autoBtn.querySelector(".spinner").classList.remove("hidden");
-  els.autoBtn.querySelector(".btn-label").style.opacity = "0.55";
-  els.autoHint.textContent = "Buscando el arreglo más pequeño…";
+  if (state.resolving) return;
+  state.resolving = true;
+  renderAlerts();
   try {
     const termIds = new Set(selectedGroupIds());
     const result = await api.optimize({
@@ -2322,10 +2065,6 @@ async function optimizeTimetable() {
     // The repair covers the whole term; free slots are asked for the week on screen.
     state.validation = null;
     state.validationKey = null;
-    state.moveSession = null;
-    state.moveCandidates = [];
-    state.previewCandidate = null;
-    els.exitMove.classList.add("hidden");
 
     updatePlanUrl();
 
@@ -2356,10 +2095,8 @@ async function optimizeTimetable() {
   } catch (error) {
     toast(`No se pudo resolver los solapes: ${error.message}`, { type: "error" });
   } finally {
-    els.autoBtn.disabled = false;
-    els.autoBtn.querySelector(".spinner").classList.add("hidden");
-    els.autoBtn.querySelector(".btn-label").style.opacity = "1";
-    els.autoHint.textContent = AUTO_HINT;
+    state.resolving = false;
+    renderAlerts();
   }
 }
 

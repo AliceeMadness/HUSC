@@ -77,9 +77,6 @@ export function renderTimetable(container, options) {
     sessions = [],
     events = [],
     term,
-    candidateSlots = [],
-    activeCandidate = null,
-    movingSessionId = null,
   } = options;
 
   const dayStart = toMinutes(term.day_start);
@@ -147,7 +144,6 @@ export function renderTimetable(container, options) {
         !isEvent && session.has_pref_conflict ? "is-pref" : "",
         !isEvent && session.pinned ? "is-pinned" : "",
         session.has_event_conflict ? "is-event-conflict" : "",
-        !isEvent && session.id === movingSessionId ? "is-moving" : "",
       ]
         .filter(Boolean)
         .join(" ");
@@ -170,7 +166,9 @@ export function renderTimetable(container, options) {
             session.has_conflict ? "¡Solapa con otra clase!" : "",
             session.has_pref_conflict ? "Cae en una franja que querías evitar." : "",
             session.has_event_conflict ? "¡Solapa con una extraescolar!" : "",
-            session.pinned ? "Grupo fijado." : "",
+            session.pinned
+              ? "Grupo fijado: «Resolver solapes» no lo cambiará. Clic para desfijar."
+              : "Clic para fijar el grupo.",
           ]
             .filter(Boolean)
             .join(" ");
@@ -195,30 +193,9 @@ export function renderTimetable(container, options) {
         </button>`;
     }).join("");
 
-    const candidates = candidateSlots
-      .filter((slot) => slot.day === day)
-      .map((slot) => {
-        const offset = toMinutes(slot.start) - dayStart;
-        const duration = toMinutes(slot.end) - toMinutes(slot.start);
-        const active =
-          activeCandidate &&
-          activeCandidate.day === slot.day &&
-          activeCandidate.start === slot.start
-            ? "is-active"
-            : "";
-        return `
-          <span
-            class="tt-candidate ${active}"
-            aria-hidden="true"
-            style="--offset:${offset};--duration:${duration}"
-          >libre</span>`;
-      })
-      .join("");
-
     return `
       <div class="tt-day" data-day="${day}" style="${bodyHeight}">
         ${blocks}
-        ${candidates}
       </div>`;
   }).join("");
 
@@ -231,7 +208,7 @@ export function renderTimetable(container, options) {
        </div></div>`;
 
   container.innerHTML = `
-    <div class="tt ${movingSessionId ? "is-moving" : ""}">
+    <div class="tt">
       <div class="tt-head">
         <div class="tt-head-gutter"></div>
         ${head}
