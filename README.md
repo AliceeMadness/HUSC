@@ -36,15 +36,17 @@ cada semana del curso y permite compartir o exportar el resultado.
 - **Selector de semana** entre «Extraescolar» y «Exportar»: agrupa las semanas
   con el mismo horario, llama «Horario habitual» a la más repetida y nombra
   las demás («Primera semana», «Semana del 12 oct · 1 clase más»…). Por defecto
-  marca la semana actual según la fecha del dispositivo. Los solapes que solo
-  ocurren en otras semanas se avisan aparte.
+  marca la semana actual según la fecha del dispositivo. Solo se avisan los
+  solapes de la semana que se está viendo.
 - **Cuatrimestre automático**: al abrir la app se muestra el cuatrimestre de
   la fecha del dispositivo (el 2C empieza en su primera semana lectiva; enero
   cuenta como 1C). El botón «1º/2º Cuatrimestre» lo cambia solo durante esa visita.
 - **Clases extraescolares** recurrentes: título, día, hora, lugar y color. Se
   pintan en el calendario y avisan de cruces.
 - **Resolver solapes** desde la propia caja roja de solapes: cambia los menos
-  grupos posibles entre los que ya has elegido.
+  grupos posibles entre los que ya has elegido. Después queda una caja verde con
+  lo que ha cambiado, el botón «Revertir cambios» (también Ctrl+Z) y una cruz
+  para cerrarla.
 - **Grupos fijados**: un clic en una clase fija su grupo (⚑) y «Resolver
   solapes» no lo toca; otro clic lo desfija.
 - **Compartir** con un enlace corto (se guarda una instantánea en el servidor,

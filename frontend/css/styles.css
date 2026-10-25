@@ -23,6 +23,8 @@
   --accent-ink: #ffffff;
   --danger: #a83b2b;
   --danger-soft: #fbe8e3;
+  --success: #2f6b3a;
+  --success-soft: #e3f1e5;
   --warn: #805611;
   --warn-soft: #f8eed8;
   --info-soft: #e6eef7;
@@ -57,6 +59,8 @@
   --accent-ink: #061229;
   --danger: #f08a75;
   --danger-soft: #3b211c;
+  --success: #8fd19b;
+  --success-soft: #1a3020;
   --warn: #e1b05e;
   --warn-soft: #382d18;
   --info: #9dc3ea;
@@ -888,6 +892,7 @@ svg { display: block; }
 .alert strong { font-weight: 700; }
 .alert-danger { background: var(--danger-soft); border-color: color-mix(in oklab, var(--danger) 18%, transparent); color: var(--danger); }
 .alert-warn { background: var(--warn-soft); border-color: color-mix(in oklab, var(--warn) 18%, transparent); color: var(--warn); }
+.alert-success { background: var(--success-soft); border-color: color-mix(in oklab, var(--success) 20%, transparent); color: var(--success); }
 .alert-info { background: var(--info-soft); border-color: color-mix(in oklab, var(--info) 16%, transparent); color: var(--info); }
 .alert ul { display: flex; flex-wrap: wrap; gap: 3px 12px; margin: 3px 0 0; padding: 0; list-style: none; }
 .alert li::before { content: "·"; margin-right: 5px; opacity: 0.6; }
@@ -903,8 +908,31 @@ svg { display: block; }
 .alert-action:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 85%, #000); }
 [data-theme="dark"] .alert-action { color: #1a0d0a; }
 .alert-warn .alert-action { background: var(--warn); }
+.alert-success .alert-action { background: var(--success); }
+.alert-success .alert-action:hover:not(:disabled) { background: color-mix(in oklab, var(--success) 85%, #000); }
+[data-theme="dark"] .alert-success .alert-action { color: #0d1a10; }
 .alert-action:disabled { opacity: 0.85; cursor: progress; }
 .alert-note { margin-top: 5px; font-size: 10.5px; opacity: 0.8; }
+/* Box left after "Resolver solapes": undo button and a close cross on the right. */
+.alert-resolved .alert-body { flex: 1 1 auto; min-width: 0; }
+.alert-close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: -4px -5px 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.alert-close svg { width: 14px; height: 14px; }
+.alert-close:hover { opacity: 1; background: color-mix(in oklab, currentColor 12%, transparent); }
+.alert-close:focus-visible { opacity: 1; outline: 2px solid currentColor; outline-offset: 1px; }
 
 /* --------------------------------------------------------------------------
    Timetable

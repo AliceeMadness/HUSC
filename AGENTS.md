@@ -250,6 +250,12 @@ Convenciones:
     grado van en el subtítulo.
   - "Resolver solapes" vive **dentro de la caja roja de solapes**
     (`renderAlerts` / `resolveButton`), no en la barra de herramientas.
+  - Tras resolver queda una **caja verde** (`resolvedAlert`, `.alert-success`; el usuario no la quiere roja) con lo cambiado, un
+    botón **"Revertir cambios"** (`revertResolve`, también Ctrl+Z / Cmd+Z fuera
+    de campos de texto) y una **cruz a la derecha** (`dismissResolve`) que la
+    cierra sin revertir. La instantánea vive en `state.lastResolve` y se descarta
+    al revertir, al cerrar, con cualquier cambio manual de grupos o al cambiar
+    de matrícula.
   - Un clic en una clase del calendario **fija o desfija** su grupo
     (`togglePin`, icono ⚑).
   - Se pueden elegir **varios grupos del mismo tipo** en una asignatura
@@ -273,8 +279,8 @@ Convenciones:
   `weekPatternLabel`): agrupa semanas idénticas, llama "Horario habitual" a la
   más repetida, nombra las demás ("Primera semana", "Semana del 12 oct · 1 clase
   más"…). Mientras `state.weekAuto` sea `true`, sigue la fecha del dispositivo.
-  Los solapes que solo ocurren en otras semanas se avisan aparte
-  (`otherWeekConflicts`).
+  **Solo se avisan los solapes de la semana que se está viendo**: el usuario
+  pidió quitar el aviso de "solapes en otras semanas" (no lo reintroduzcas).
 - **Bloques unidos**: `mergeLocalSessions` (JS) y `merge_session_views`
   (Python) unen clases consecutivas del mismo grupo y aula (9–10 + 10–11 →
   9–11), conservando las sesiones originales.
@@ -358,6 +364,9 @@ Los tests no cubren el frontend. Para cambios visibles:
      inyecta un `Date` falso con `Page.addScriptToEvaluateOnNewDocument`.
    - Si imprimes emojis o tildes por consola en Windows, usa
      `PYTHONIOENCODING=utf-8`.
+   - El Edge de este equipo tiene la extensión **Dark Reader**: en tema claro
+     oscurece la página (fondo `rgb(24, 26, 27)`) y falsea capturas y colores
+     calculados. No es un fallo de la app.
 3. Limpia `localStorage` al empezar cada prueba, porque el horario guardado
    cambia el comportamiento de la portada.
 4. Guarda capturas y scripts de prueba fuera del repo (carpeta temporal), salvo

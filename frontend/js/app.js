@@ -52,6 +52,9 @@ const state = {
   autoResult: null,
   // "Resolver solapes" is running (its button lives in the overlap alert).
   resolving: false,
+  // The timetable before the last "Resolver solapes", for "Revertir cambios".
+  // ``null`` once reverted, dismissed or after any manual change.
+  lastResolve: null,
   validationTimer: null,
   validationToken: 0,
 };
@@ -620,6 +623,17 @@ function bindEvents() {
   // The "Resolver solapes" button is re-rendered with the alerts.
   els.alerts.addEventListener("click", (event) => {
     if (event.target.closest("[data-action='resolve']")) optimizeTimetable();
+    else if (event.target.closest("[data-action='revert']")) revertResolve();
+    else if (event.target.closest("[data-action='dismiss-resolve']")) dismissResolve();
+  });
+  // Ctrl+Z (Cmd+Z) undoes the last "Resolver solapes" while it can be reverted.
+  document.addEventListener("keydown", (event) => {
+    if (!state.lastResolve || event.key.toLowerCase() !== "z" || event.shiftKey) return;
+    if (!(event.ctrlKey || event.metaKey)) return;
+    if (event.target.closest?.("input, textarea, select, [contenteditable]")) return;
+    if (els.workspace.classList.contains("hidden") || document.querySelector("dialog[open]")) return;
+    event.preventDefault();
+    revertResolve();
   });
 
   els.subjects.addEventListener("click", (event) => {
@@ -880,6 +894,7 @@ function showWorkspace() {
 // "Nueva matrícula" forgets the plan entirely: subjects, chosen and pinned
 // groups and extracurricular activities, in memory and in this browser.
 function resetPlan() {
+  state.lastResolve = null;
   state.planSubjectIds = [];
   state.customEvents = [];
   state.editingEventId = null;
@@ -1189,6 +1204,7 @@ async function applyPlanDraft() {
 }
 
 function buildIndexes(data) {
+  state.lastResolve = null;
   state.subjects = [];
   state.groupIndex = new Map();
   state.allSessions = [];
@@ -1287,6 +1303,7 @@ function selectedSubjectCount() {
    -------------------------------------------------------------------------- */
 
 function onSelectionChanged() {
+  state.lastResolve = null;
   state.validation = null;
   state.validationKey = null;
   prunePins();
@@ -1920,9 +1937,6 @@ function renderStatus() {
       const included = total - (state.autoResult.excluded_subjects?.length ?? 0);
       label = `${included} de ${total} materias`;
       className = "status-pill";
-    } else if (otherWeekConflicts().length) {
-      label = "Sin solapes esta semana";
-      className = "status-pill is-warn";
     } else {
       label = "Sin solapes";
       className = "status-pill";
@@ -1963,35 +1977,14 @@ function missingGroups() {
 
 // Term-wide overlaps (from the API) that do not happen in the week on
 // screen, so a clash in a single special week is still visible.
-function otherWeekConflicts() {
-  const weekId = activeWeekId();
-  if (!weekId || !state.validation?.conflicts) return [];
-  const seen = new Set();
-  const result = [];
-  for (const conflict of state.validation.conflicts) {
-    const left = state.sessionById.get(conflict.left.id);
-    const right = state.sessionById.get(conflict.right.id);
-    if (!left || !right) continue;
-    const weeks = left.weeks && right.weeks
-      ? left.weeks.filter((week) => right.weeks.includes(week))
-      : left.weeks ?? right.weeks;
-    if (!weeks || weeks.includes(weekId)) continue;
-    const key = [conflict.left.subject_name, conflict.left.group_code, conflict.right.subject_name, conflict.right.group_code, conflict.day, weeks.join()].join("|");
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const when = weeks.length === 1
-      ? `semana del ${formatWeekDate(weeks[0])}`
-      : `${weeks.length} semanas desde el ${formatWeekDate(weeks[0])}`;
-    result.push({ ...conflict, when });
-  }
-  return result;
-}
-
 function renderAlerts() {
   const alerts = [];
   const { conflicts, sessions, eventConflicts } = state.localSchedule;
   const blocked = localBlockedConflicts(sessions);
   const missing = missingGroups();
+
+  const resolved = resolvedAlert();
+  if (resolved) alerts.push(resolved);
 
   if (conflicts.length) {
     const items = conflicts.slice(0, 4).map(
@@ -2003,20 +1996,6 @@ function renderAlerts() {
         <span class="alert-icon">!</span>
         <div><strong>Hay ${plural(conflicts.length, "solape", "solapes")} en tu semana.</strong>
         <ul>${items.join("")}</ul>${resolveButton()}</div>
-      </div>`);
-  }
-
-  const elsewhere = otherWeekConflicts();
-  if (elsewhere.length) {
-    const items = elsewhere.slice(0, 4).map(
-      (item) =>
-        `<li>${escapeHtml(item.left.subject_name)} (${escapeHtml(item.left.group_code)}) × ${escapeHtml(item.right.subject_name)} (${escapeHtml(item.right.group_code)}) · ${escapeHtml(item.day_label)} ${item.start}–${item.end} · ${escapeHtml(item.when)}</li>`,
-    );
-    alerts.push(`
-      <div class="alert alert-warn">
-        <span class="alert-icon">!</span>
-        <div><strong>${plural(elsewhere.length, "solape", "solapes")} en otras semanas.</strong>
-        <ul>${items.join("")}${elsewhere.length > items.length ? `<li>y ${elsewhere.length - items.length} más</li>` : ""}</ul>${conflicts.length ? "" : resolveButton()}</div>
       </div>`);
   }
 
@@ -2118,6 +2097,44 @@ function resolveButton() {
     <p class="alert-note">Cambia los menos grupos posibles entre los que ya has elegido. Los grupos fijados (⚑, clic en la clase) no se tocan.</p>`;
 }
 
+// The green box left after "Resolver solapes": what changed, a button to undo
+// it and a cross to hide the box.
+function resolvedAlert() {
+  const last = state.lastResolve;
+  if (!last || last.semester !== state.semester) return "";
+  const parts = [];
+  if (last.changed) parts.push(plural(last.changed, "grupo cambiado", "grupos cambiados"));
+  if (last.removed) parts.push(plural(last.removed, "grupo quitado", "grupos quitados"));
+  const summary = parts.length ? parts.join(" y ") : "Tu horario ha cambiado";
+  return `
+    <div class="alert alert-success alert-resolved" role="status">
+      <span class="alert-icon">✦</span>
+      <div class="alert-body"><strong>Solapes resueltos.</strong> ${escapeHtml(summary)}${last.detail ? `: ${escapeHtml(last.detail)}` : ""}.
+        <div><button class="btn alert-action" type="button" data-action="revert">↶ Revertir cambios</button></div>
+      </div>
+      <button class="alert-close" type="button" data-action="dismiss-resolve" aria-label="Cerrar aviso" title="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>`;
+}
+
+// "Revertir cambios": put back the groups chosen before "Resolver solapes".
+function revertResolve() {
+  const last = state.lastResolve;
+  if (!last) return;
+  state.selected = last.selected;
+  state.autoResult = last.autoResult;
+  if (state.semester !== last.semester) setSemester(last.semester, { announce: false });
+  onSelectionChanged();
+  updatePlanUrl();
+  toast("Cambios revertidos: vuelves a tener los grupos de antes.");
+}
+
+function dismissResolve() {
+  state.lastResolve = null;
+  renderAlerts();
+}
+
 function describeChanges(changes) {
   const moved = changes.filter((change) => change.from_group_id && change.to_group_id);
   if (!moved.length) return "";
@@ -2151,6 +2168,11 @@ async function optimizeTimetable() {
       toast("Tu horario no tiene solapes: no hay nada que cambiar.");
       return;
     }
+    const before = {
+      selected: structuredClone(state.selected),
+      autoResult: state.autoResult,
+      semester: state.semester,
+    };
     state.autoResult = null;
     // Only the visible term is replaced; the other keeps its groups.
     for (const subjectId of semesterSubjectIds()) delete state.selected[subjectId];
@@ -2171,10 +2193,11 @@ async function optimizeTimetable() {
     const changed = result.solver?.changed ?? 0;
     const removed = result.solver?.removed ?? 0;
     const detail = describeChanges(changes);
-    if (result.status === "optimized") {
-      const summary = `Solapes resueltos cambiando ${plural(changed, "grupo", "grupos")}`;
-      toast(detail ? `${summary}: ${detail}.` : `${summary}.`, { duration: 7000 });
-    } else if (result.status === "partial") {
+    if (result.status === "optimized" || result.status === "partial") {
+      state.lastResolve = { ...before, status: result.status, changed, removed, detail };
+    }
+    // A full repair is explained by the box with "Revertir cambios".
+    if (result.status === "partial") {
       const dropped = changes
         .filter((change) => change.from_group_id && !change.to_group_id)
         .map((change) => `${change.subject_name} (${change.type_label})`)
@@ -2184,7 +2207,7 @@ async function optimizeTimetable() {
           (changed ? ` y cambiado ${plural(changed, "grupo", "grupos")}.` : "."),
         { type: "warn", duration: 8000 },
       );
-    } else {
+    } else if (result.status !== "optimized") {
       toast("No se pudo quitar los solapes sin mover los grupos fijados.", { type: "error" });
     }
   } catch (error) {
