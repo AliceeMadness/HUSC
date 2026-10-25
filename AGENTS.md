@@ -288,7 +288,8 @@ Convenciones:
   tarjeta con la clase que empieza en la próxima hora. Se refresca cada 30 s.
 - **Edificio en cada clase**: etiqueta `<<Edificio>> 📍` con el nombre corto
   (Matemáticas, Física, ETSE, Emprendia, Condesa).
-- **Tema claro/oscuro**: `applyTheme`, guardado en `horario:theme`.
+- **Tema claro/oscuro**: `applyTheme`, guardado en `horario:theme`. El botón
+  (`#theme-toggle`) se ve siempre, también en la portada.
 
 ### Persistencia en el navegador
 
