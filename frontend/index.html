@@ -13,13 +13,10 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <a class="brand" href="/" id="brand-link" aria-label="Horario USC · Volver al inicio">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="currentColor"/></svg>
-        </span>
-        <span class="brand-name">Horario</span>
+      <a class="brand" href="/" id="brand-link" aria-label="HUSC · Volver al inicio">
+        <span class="brand-name">HUSC</span>
         <span class="brand-divider" aria-hidden="true"></span>
-        <span class="brand-sub">USC</span>
+        <span class="brand-sub">Horarios USC</span>
       </a>
       <div class="topbar-actions">
         <span class="chip chip-year hidden" id="year-chip"></span>
@@ -40,53 +37,23 @@
     <main class="page">
       <section class="landing" id="landing" aria-labelledby="landing-title">
         <div class="hero">
-          <div class="hero-copy">
-            <p class="eyebrow">Constructor de horarios · Universidade de Santiago</p>
-            <h1 id="landing-title">HUSC</h1>
-            <p class="hero-lead">
-              Elige tus grupos de expositiva, laboratorio y seminario.
-              Nosotros comprobamos los solapes, te enseñamos cada semana
-              del curso y te dejamos un horario listo para compartir.
-            </p>
+          <h1 id="landing-title">HUSC</h1>
+          <p class="hero-lead">
+            Elige asignaturas y grupos, mira qué choca cada semana del curso y
+            llévatelo al calendario del móvil. Datos de 2025/26 sacados de usc.gal.
+          </p>
+          <div class="hero-actions">
             <button class="btn btn-accent hero-resume" id="configure-plan" type="button">
               <span class="hero-resume-copy">
                 <span id="configure-plan-label">Configurar mi horario</span>
               </span>
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <div class="hero-meta">
+            <p class="hero-meta">
               <span><strong>2</strong> grados</span>
               <span><strong>9</strong> cursos</span>
               <span><strong>36</strong> asignaturas</span>
-            </div>
-          </div>
-          <div class="hero-art" aria-hidden="true">
-            <div class="hero-card">
-              <div class="hero-card-head">
-                <span>Semana tipo</span>
-                <span class="hero-live"><i></i> sin solapes</span>
-              </div>
-              <div class="hero-grid">
-                <div class="hero-days"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span></div>
-                <div class="hero-rows">
-                  <div class="hero-row"></div><div class="hero-row"></div><div class="hero-row"></div><div class="hero-row"></div><div class="hero-row"></div>
-                </div>
-                <span class="hero-block hb-1"></span>
-                <span class="hero-block hb-2"></span>
-                <span class="hero-block hb-3"></span>
-                <span class="hero-block hb-4"></span>
-                <span class="hero-block hb-5"></span>
-                <span class="hero-block hb-6"></span>
-                <span class="hero-block hb-7"></span>
-              </div>
-              <div class="hero-foot">
-                <span class="hero-avatar">3º</span>
-                <span>Matemáticas · 5 materias</span>
-                <span class="hero-check">✓</span>
-              </div>
-            </div>
-            <div class="hero-note hero-note-a">Semana a semana</div>
-            <div class="hero-note hero-note-b">9 grupos elegidos</div>
+            </p>
           </div>
         </div>
 
@@ -113,16 +80,16 @@
 
         <div class="feature-strip">
           <div class="feature">
-            <span class="feature-icon">≠</span>
-            <div><strong>Cero solapes</strong><p>Valida cada combinación de grupos al instante.</p></div>
+            <strong>Solapes al momento</strong>
+            <p>Cada grupo que marcas se comprueba contra el resto, semana a semana.</p>
           </div>
           <div class="feature">
-            <span class="feature-icon">◷</span>
-            <div><strong>Semana a semana</strong><p>Mira cada semana del curso, también las especiales.</p></div>
+            <strong>Las semanas raras también</strong>
+            <p>Festivos, prácticas que empiezan tarde, semanas con una clase de más.</p>
           </div>
           <div class="feature">
-            <span class="feature-icon">↗</span>
-            <div><strong>Listo para compartir</strong><p>Un enlace, un PDF o un calendario .ics.</p></div>
+            <strong>Para llevar</strong>
+            <p>Enlace para compartir, PDF o calendario .ics para el móvil.</p>
           </div>
         </div>
       </section>
@@ -223,7 +190,7 @@
   <dialog class="dialog" id="export-dialog">
     <div class="dialog-head">
       <div>
-        <p class="eyebrow">Llevátelo</p>
+        <p class="eyebrow">Llévatelo</p>
         <h2>Exportar horario</h2>
       </div>
       <button class="icon-btn icon-btn-small" type="button" data-close-dialog aria-label="Cerrar">

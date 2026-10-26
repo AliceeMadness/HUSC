@@ -265,6 +265,11 @@ Convenciones:
 - **Cosas que el usuario quitó a propósito; no las reintroduzcas:**
   - mapa de edificios;
   - presets de extraescolares;
+  - la portada "con pinta de IA": etiqueta en mayúsculas sobre el título,
+    tarjeta de calendario decorativa inclinada, notitas flotantes, degradados
+    de fondo, círculos decorativos en las tarjetas e iconos en cuadraditos. La
+    portada es sobria: título "HUSC", texto, botón y debajo, en su propia
+    línea y al mismo tamaño que el texto, las cifras del catálogo;
   - panel de horas libres / huecos;
   - preferencias de franjas bloqueadas (`blockedSlots()` devuelve `[]` y el
     código asociado queda inerte).
