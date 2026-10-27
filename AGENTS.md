@@ -291,8 +291,10 @@ Convenciones:
   9–11), conservando las sesiones originales.
 - **"Próximamente"** (`#upcoming`, `renderUpcoming` / `upcomingClasses`):
   tarjeta con la clase que empieza en la próxima hora. Se refresca cada 30 s.
-- **Edificio en cada clase**: etiqueta `<<Edificio>> 📍` con el nombre corto
-  (Matemáticas, Física, ETSE, Emprendia, Condesa).
+- **Cada clase del calendario** muestra el grupo y su tipo ("CLE01 ·
+  Expositiva") bajo el nombre, y en la última línea el aula a la izquierda y la
+  etiqueta `<<Edificio>> 📍` a la derecha, con el nombre corto (Matemáticas,
+  Física, ETSE, Emprendia, Condesa).
 - **Tema claro/oscuro**: `applyTheme`, guardado en `horario:theme`. El botón
   (`#theme-toggle`) se ve siempre, también en la portada.
 
@@ -343,8 +345,9 @@ python scripts/sync_usc.py --timeout 60
   `allow_empty` y se ignoran; **no las conviertas en error**.
 - **Edificios**: el edificio sale de la fuente, salvo que el aula encaje con
   un patrón `rooms` (regex) en `config.yaml`. Las aulas `IA.*` van a Emprendia
-  aunque las publique la ETSE. "LB 5" se queda en la ETSE. Condesa no tiene
-  aulas en los datos actuales.
+  aunque las publique la ETSE. "LB 5" se queda en la ETSE. Las aulas B, C y D
+  de Física y los laboratorios de instrumentación van a Condesa (estos
+  laboratorios aún no aparecen en los datos de la USC).
 - Si una fuente falla, ese curso se rellena con datos sintéticos y queda
   registrado en `data/usc_sync.db` (`GET /api/sync/status`).
 - Un `--synthetic` o una sincronización parcial **reescriben

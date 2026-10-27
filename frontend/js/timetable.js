@@ -174,7 +174,7 @@ export function renderTimetable(container, options) {
             .join(" ");
       const meta = isEvent
         ? session.location || "Extraescolar"
-        : `${session.group_code} · ${session.room_name}`;
+        : [session.group_code, session.group_type_label].filter(Boolean).join(" · ");
       const colorVar = isEvent
         ? `--event-color:${escapeHtml(session.color)}`
         : `--subject-color:${escapeHtml(session.color || "var(--accent)")}`;
@@ -189,7 +189,7 @@ export function renderTimetable(container, options) {
         >
           <span class="tt-block-name">${escapeHtml(isEvent ? session.title : session.subject_name)}</span>
           <span class="tt-block-meta">${escapeHtml(meta)}</span>
-          ${isEvent ? "" : `<span class="tt-block-building">${escapeHtml(session.building_short_name || session.building_name || "")} 📍</span>`}
+          ${isEvent ? "" : `<span class="tt-block-foot"><span class="tt-block-room">${escapeHtml(session.room_name || "")}</span><span class="tt-block-building">${escapeHtml(session.building_short_name || session.building_name || "")} 📍</span></span>`}
         </button>`;
     }).join("");
 

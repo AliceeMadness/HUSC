@@ -40,7 +40,8 @@ buildings:
     rooms: ['^IA\.']
   - name: Colexio da Condesa
     short_name: Condesa
-    rooms: []
+    # Las aulas B, C y D y los laboratorios de instrumentación de Física.
+    rooms: ['^Aula [BCD]$', '(?i)laboratorio.*instrumentaci']
 
 degrees:
   - id: matematicas

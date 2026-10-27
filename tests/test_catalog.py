@@ -37,7 +37,7 @@ def test_expected_catalogue_counts(catalog: Catalog) -> None:
     assert len(catalog.groups) >= 900
     assert len(catalog.class_sessions) >= 1400
     assert len(catalog.rooms) >= 30
-    assert len(catalog.buildings) == 4
+    assert len(catalog.buildings) == 5
 
 
 def test_new_degrees_are_present(catalog: Catalog) -> None:
@@ -55,6 +55,7 @@ def test_new_degrees_are_present(catalog: Catalog) -> None:
         "Facultad de Física",
         "Escuela Técnica Superior de Ingeniería",
         "Edificio Emprendia",
+        "Colexio da Condesa",
     }
     # Every building carries the short label shown on each class.
     assert {building.short_name for building in catalog.buildings} == {
@@ -62,6 +63,7 @@ def test_new_degrees_are_present(catalog: Catalog) -> None:
         "Física",
         "ETSE",
         "Emprendia",
+        "Condesa",
     }
     rooms = {room.name for room in catalog.rooms}
     assert "Sin aula" not in rooms

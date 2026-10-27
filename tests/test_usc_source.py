@@ -199,5 +199,10 @@ def test_rooms_map_to_their_building() -> None:
     assert building_for_room("IA.01", etse, rules) == "Edificio Emprendia"
     assert building_for_room("LB 5", etse, rules) == etse
     assert building_for_room("Aula A1", etse, rules) == etse
+    physics = "Facultad de Física"
+    for room in ("Aula B", "Aula C", "Aula D", "Laboratorio de Instrumentación 2"):
+        assert building_for_room(room, physics, rules) == "Colexio da Condesa"
+    assert building_for_room("Aula Magna", physics, rules) == physics
+    assert building_for_room("Aula BC", physics, rules) == physics
     short = building_short_names(config)
     assert {short[name] for name in short} == {"Matemáticas", "Física", "ETSE", "Emprendia", "Condesa"}

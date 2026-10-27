@@ -1624,7 +1624,7 @@ function renderUpcoming() {
         (block) => `
         <div class="upcoming-block">
           <span class="tt-block-name">${escapeHtml(block.subject_name)}</span>
-          <span class="tt-block-meta">${escapeHtml(block.group_code)} · ${escapeHtml(block.room_name)}</span>
+          <span class="tt-block-meta">${escapeHtml([block.group_code, block.group_type_label, block.room_name].filter(Boolean).join(" · "))}</span>
           <span class="upcoming-foot">
             <span class="upcoming-time">${block.start}–${block.end}</span>
             <span class="tt-block-building">${escapeHtml(block.building_short_name || block.building_name || "")} 📍</span>

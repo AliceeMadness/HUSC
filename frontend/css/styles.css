@@ -885,8 +885,28 @@ svg { display: block; }
   text-overflow: ellipsis;
 }
 [data-theme="dark"] .tt-block-meta { color: color-mix(in oklab, var(--subject-color) 45%, var(--ink)); }
-/* Building of the class, pinned to the bottom-right corner. */
+/* Bottom row of a class: room on the left, building on the right. */
+.tt-block-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  margin-top: auto;
+}
+.tt-block-room {
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in oklab, var(--subject-color) 58%, var(--ink));
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+[data-theme="dark"] .tt-block-room { color: color-mix(in oklab, var(--subject-color) 45%, var(--ink)); }
 .tt-block-building {
+  flex: 0 0 auto;
   margin-top: auto;
   align-self: flex-end;
   max-width: 100%;
@@ -900,6 +920,7 @@ svg { display: block; }
 [data-theme="dark"] .tt-block-building { color: color-mix(in oklab, var(--subject-color) 45%, var(--ink)); }
 .tt-block.is-short { justify-content: center; padding-top: 2px; padding-bottom: 2px; }
 .tt-block.is-short .tt-block-meta,
+.tt-block.is-short .tt-block-foot,
 .tt-block.is-short .tt-block-building { display: none; }
 .tt-block.is-conflict {
   background:
