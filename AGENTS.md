@@ -7,7 +7,8 @@ conocidas hay. Léelo entero antes del primer cambio.
 
 > Si algo de aquí contradice al código, manda el código: corrígelo aquí en el
 > mismo cambio. El `README.md` es la cara pública del proyecto y a veces va por
-> detrás (ver [Documentación desactualizada](#documentación-desactualizada)).
+> detrás: revísalo cuando cambies comportamiento (ver
+> [Problemas conocidos](#13-problemas-conocidos-sin-arreglar)).
 
 ---
 
@@ -22,7 +23,8 @@ grupos (expositiva, laboratorio, seminario) y la app:
 - muestra cada semana del curso, agrupando las que tienen el mismo horario;
 - resuelve solapes cambiando el menor número de grupos posible;
 - permite fijar grupos, añadir extraescolares, compartir por enlace y exportar
-  a JSON, `.ics` o PDF (impresión).
+  a JSON, `.ics` o PDF (descarga directa generada en el navegador; el botón
+  de la impresora sigue abriendo la impresión).
 
 Grados incluidos: Matemáticas, Física, Ingeniería Informática, Inteligencia
 Artificial y los dobles grados Informática + Matemáticas y Matemáticas + Física.
@@ -56,16 +58,16 @@ uvicorn backend.main:app --reload --port 8000
 ```
 
 - `pyproject.toml` ya tiene `addopts = "-q"`. **No añadas otro `-q`**: con
-  `-qq` desaparece la línea de resumen (`107 passed in …`).
-- Estado actual: **107 tests** en verde (`test_api.py` 34 · `test_scheduling.py`
-  27 · `test_catalog.py` 12 · `test_usc_source.py` 8, algunos parametrizados).
+  `-qq` desaparece la línea de resumen (`113 passed in …`).
+- Estado actual: **113 tests** en verde (`test_api.py` 40 · `test_scheduling.py`
+  53 · `test_catalog.py` 12 · `test_usc_source.py` 8, algunos parametrizados).
 - Los tests usan `TestClient`, no necesitan servidor arrancado ni red.
 - Tests que fijan datos reales del catálogo (ids de asignaturas, nº de cursos…)
   se rompen si se resincroniza: actualízalos a conciencia, no los borres.
 
 ### Versión de Python
 
-El README dice 3.11+, pero el `.venv` del equipo de desarrollo es **Python 3.10**.
+El `.venv` del equipo de desarrollo es **Python 3.10** (el README dice 3.10+).
 El código debe seguir funcionando en 3.10:
 
 - `date.fromisoformat("2025-W43-1")` **no** funciona en 3.10 → usa
@@ -79,9 +81,17 @@ El código debe seguir funcionando en 3.10:
 
 ```text
 backend/
-  main.py          FastAPI: modelos de petición, endpoints, ICS, servido de la SPA
+  main.py          FastAPI: endpoints (HTTP -> funciones), middleware, servido de la SPA
+  schemas.py       Modelos de las peticiones (con límites)
+  ics.py           Exportación a calendario .ics
   models.py        Modelo Pydantic del catálogo + validación referencial
-  scheduling.py    Solapes, validación, generación, reparación ("Resolver solapes"), huecos
+  scheduling/      Algoritmos (``from backend.scheduling import …`` reexporta todo):
+    common.py        normalización, búsqueda de grupos, regla de solape (_overlaps)
+    views.py         solapes, huecos y bloques unidos sobre vistas de sesión
+    validation.py    validate_selection, free_slots_for_groups
+    variables.py     modelo de búsqueda común (Variable, _quality, fijaciones)
+    generator.py     generate_schedule (solo API)
+    repair.py        optimize_schedule ("Resolver solapes")
   store.py         CatalogStore: índices en memoria, vistas enriquecidas, enlaces compartidos
   usc_source.py    Acceso AJAX a la USC, parser HTML, edificios, fallback sintético, SQLite
   timeutil.py      HH:MM <-> minutos, días, semana ISO -> curso académico actual
@@ -89,9 +99,29 @@ backend/
 frontend/
   index.html       Toda la SPA: portada (#landing), espacio de trabajo (#workspace), diálogos
   css/styles.css   Tokens de color (claro/oscuro), layout, componentes
-  js/app.js        Estado, eventos, render de paneles, semanas, solapes locales, compartir, exportar
-  js/timetable.js  Render de la rejilla semanal y layout de clases solapadas
-  js/api.js        Cliente fetch (lanza Error con .status)
+  js/              ES modules sin build; ``app.js`` es la entrada:
+    app.js           arranque (init, URL) y conexión de eventos (bindEvents)
+    constants.js     paleta, órdenes, etiquetas, claves de localStorage
+    state.js         ``state`` (estado único) y ``els`` (elementos del DOM)
+    utils.js / ui.js formato y textos / toasts, portapapeles, descargas
+    api.js           cliente fetch (lanza Error con .status)
+    catalog.js       consultas al directorio de grados
+    storage.js       horario guardado y tema en localStorage
+    selection.js     índices del plan, grupos elegidos y fijados
+    weeks.js         semanas ISO, fecha del dispositivo, selector de semana
+    schedule.js      bloques unidos, solapes locales, "Próximamente" (gemela de la regla)
+    validation.js    onSelectionChanged y validación del servidor con debounce
+    render.js        dibujo del espacio de trabajo (panel, calendario, avisos)
+    timetable.js     rejilla semanal y layout de clases solapadas
+    events.js        extraescolares
+    header.js        tema y cuatrimestre
+    landing.js       portada y buscador de grados
+    plan.js          abrir la matrícula, cabecera y URL
+    plan-dialog.js   diálogo "Editar matrícula"
+    resolve.js       "Resolver solapes", caja verde, revertir, fijar grupos
+    share.js         compartir y exportar (JSON, .ics, PDF)
+    pdf.js           escritor de PDF vectorial mínimo (Helvetica, WinAnsi), sin dependencias
+    pdf-export.js    dibuja la semana en pantalla como PDF A4 apaisado
 data/
   catalog.json     Catálogo canónico (≈4,7 MB, versionado en git)
   shared_schedules/  Instantáneas de "Compartir" (*.json ignorados por git)
@@ -112,7 +142,7 @@ horario.csv, forms_data.json  Datos legacy de la primera versión
 USC (Drupal AJAX) ──sync_usc.py──▶ data/catalog.json ──CatalogStore──▶ FastAPI /api/*
                                                                          │
                          navegador ◀── fetch (api.js) ──────────────────┘
-                         app.js: estado, solapes locales instantáneos,
+                         js/: estado, solapes locales instantáneos,
                          validación/reparación en servidor, localStorage
 ```
 
@@ -123,12 +153,13 @@ USC (Drupal AJAX) ──sync_usc.py──▶ data/catalog.json ──CatalogStor
   al instante. La validación del servidor llega con debounce
   (`scheduleValidation` → `refreshValidation`, con `validationToken` para
   descartar respuestas viejas).
-- Si cambias la lógica de solape en `scheduling.py`, **cambia también su gemela
-  en `app.js`** (y viceversa). Son dos implementaciones de la misma regla:
+- Si cambias la lógica de solape en `scheduling/common.py` y `scheduling/views.py`,
+  **cambia también su gemela en `frontend/js/schedule.js`** (y viceversa). Son dos implementaciones de la misma regla:
   - mismo día,
   - intervalos `[start, end)` que se cortan (tocarse en el borde no es solape),
   - mismo cuatrimestre,
   - al menos una semana ISO en común (`weeks = null` significa "todas").
+  Lo mismo vale para clases contra extraescolares (`CustomEvent.weeks`).
 
 ## 5. Modelo de datos (`data/catalog.json`)
 
@@ -199,7 +230,7 @@ Ordena códigos de grupo con `natural_key()` (`CLE02` antes que `CLE10`).
 
 Convenciones:
 
-- Los modelos de petición viven en `main.py` y tienen límites (`max_length`,
+- Los modelos de petición viven en `schemas.py` y tienen límites (`max_length`,
   `ge`/`le`). Mantén límites en cualquier campo nuevo.
 - `ValueError` → 422 y `KeyError` → 404, con el mensaje **en español** en
   `detail`. `api.js` muestra ese `detail` al usuario, así que escribe mensajes
@@ -216,14 +247,21 @@ Convenciones:
 
 - **Vanilla JS con ES modules**, sin dependencias ni build. No metas
   frameworks, CDNs ni `npm` sin que el usuario lo pida.
-- Todo el HTML vive en `index.html`; `app.js` rellena con `innerHTML` usando
+- Todo el HTML vive en `index.html`; los módulos de `js/` lo rellenan con `innerHTML` usando
   plantillas. **Escapa siempre** datos variables con `escapeHtml()`
   (nombres de asignaturas, títulos de extraescolares, lugares…).
-- Las referencias al DOM se recogen una vez en `els` dentro de `init()`. Un
-  elemento nuevo con `id` → añádelo a `els` y enlaza eventos en `bindEvents()`.
-- El estado global está en `state` (arriba de `app.js`). Tras cambiar la
-  selección llama a `onSelectionChanged()` / `renderEverything()` y a
-  `saveLast()` según corresponda; mira cómo lo hacen las funciones vecinas.
+- Las referencias al DOM se recogen una vez en `els` (`collectElements()` en
+  `state.js`, llamado desde `init()`). Un elemento nuevo con `id` → añádelo a
+  `ELEMENT_IDS` en `state.js` y enlaza sus eventos en `bindEvents()` de `app.js`
+  (o en el `bind…()` del módulo, como `bindPlanDialog()`).
+- El estado global es `state` en `state.js`. Tras cambiar la selección llama a
+  `onSelectionChanged()` (`validation.js`) / `renderEverything()` (`render.js`)
+  y a `saveLast()` (`storage.js`) según corresponda; mira cómo lo hacen las
+  funciones vecinas.
+- Cada módulo tiene una sola responsabilidad (ver la lista de la sección 3).
+  Los módulos se importan entre sí en ciclo (p. ej. `render.js` ↔ `resolve.js`):
+  es válido en ES modules porque solo se llaman funciones, nunca en la carga.
+  No ejecutes código del módulo al importarlo, salvo constantes.
 - Comentarios de código **en inglés**; textos de la interfaz **en español**
   (de España: "Cuatrimestre", "Matrícula", "Extraescolar").
 
@@ -291,10 +329,23 @@ Convenciones:
   9–11), conservando las sesiones originales.
 - **"Próximamente"** (`#upcoming`, `renderUpcoming` / `upcomingClasses`):
   tarjeta con la clase que empieza en la próxima hora. Se refresca cada 30 s.
+- **Extraescolares** (`events.js`): por defecto son de "Todas las semanas"
+  (`weeks: null`); con "Solo algunas" se eligen semanas ISO del catálogo en el
+  diálogo, agrupadas por cuatrimestre. Solo aparecen y solo cuentan como cruce
+  (en la pantalla, en la validación, en «Resolver solapes» y en el `.ics`) en
+  sus semanas. Las semanas que solo se diferencian en extraescolares tienen su
+  propia entrada en el selector de semana.
 - **Cada clase del calendario** muestra el grupo y su tipo ("CLE01 ·
   Expositiva") bajo el nombre, y en la última línea el aula a la izquierda y la
   etiqueta `<<Edificio>> 📍` a la derecha, con el nombre corto (Matemáticas,
   Física, ETSE, Emprendia, Condesa).
+- **PDF** (`downloadPdf` en `share.js` → `timetablePdf` en `pdf-export.js` →
+  `PdfDocument` en `pdf.js`): dibuja en vectorial la semana que se ve (la misma
+  `layoutDay` de `timetable.js`), A4 apaisado, sin dependencias ni servidor.
+  Usa Helvetica con WinAnsiEncoding: tildes y ñ salen bien; los emojis (📍) se
+  omiten. Para probarlo en headless, captura el blob parcheando
+  `URL.createObjectURL` (la descarga por CDP no se guarda) y renderízalo con
+  PyMuPDF en un venv aparte con ruta corta (rutas largas rompen `pip`).
 - **Tema claro/oscuro**: `applyTheme`, guardado en `horario:theme`. El botón
   (`#theme-toggle`) se ve siempre, también en la portada.
 
@@ -316,7 +367,7 @@ Convenciones:
   no se usa el verde de las primeras versiones.
 - Usa los tokens CSS existentes (`var(--…)` en `:root` y el bloque del tema
   oscuro) en vez de colores sueltos, y comprueba **ambos temas**.
-- La paleta de asignaturas es `PALETTE` en `app.js`.
+- La paleta de asignaturas es `PALETTE` en `js/constants.js`.
 - La interfaz tenía 100/100 en accesibilidad en Lighthouse. Mantén `aria-*`,
   `label`s, foco visible y contraste.
 - Comprueba también el ancho de móvil: el diseño es responsive.
@@ -398,10 +449,16 @@ Los tests no cubren el frontend. Para cambios visibles:
 
 ## 11. Git y flujo de trabajo
 
-- Rama de trabajo de Alejandro: **`rama-alejandro`**. La principal es `main`.
-  Remoto: `https://github.com/Piqueiras/HackETSE.git`.
-- **Haz commit o push solo cuando el usuario lo pida.** No hagas force-push,
-  no reescribas historia y no fusiones en `main` sin permiso explícito.
+- Repositorio de trabajo: **`https://github.com/AliceeMadness/HUSC.git`**
+  (remoto `origin`), rama **`main`**. Render publica la web desde esa rama con
+  Auto-Deploy: **cada push a `main` sale a producción**.
+- El repositorio original del hackathon sigue como remoto `piqueiras`
+  (`https://github.com/Piqueiras/HackETSE.git`, ramas `rama-alejandro`,
+  `rama-piqueras`…). Úsalo solo para traer cambios del equipo cuando se pida.
+- **Haz commit o push solo cuando el usuario lo pida.** No hagas force-push y
+  no reescribas historia. Para cambios grandes trabaja en una rama
+  (p. ej. `refactor-estructura`) y fusiónala en `main` cuando el usuario pida
+  subirlo.
 - Mensajes de commit **en español**, en imperativo o descriptivos, en la línea
   de los existentes ("Resolver solapes en la caja de solapes y fijar grupos con
   un clic"). Si el commit agrupa varias cosas, añade un cuerpo con viñetas.
@@ -422,28 +479,37 @@ Los tests no cubren el frontend. Para cambios visibles:
 - [ ] No reintroducido nada de la lista de cosas quitadas a propósito.
 - [ ] Nada subido a git sin que el usuario lo pidiera.
 
-## 13. Documentación desactualizada
+## 13. Problemas conocidos sin arreglar
 
-Al escribir este archivo, el `README.md` tenía estos desfases:
-
-- dice "90 tests"; hay 107;
-- dice "Python 3.11+"; el entorno real es 3.10 y el código lo soporta;
-- la descripción de la app en `main.py` (`FastAPI(description=…)`) solo menciona
-  Matemáticas y Matemáticas + Física;
-- en "Decisiones y limitaciones" aún habla de "sincronización real de la semana
-  43", aunque ya se sincroniza semana a semana;
-- el ejemplo de `/api/schedules/generate` usa `blocked`, que la UI ya no envía.
-
-Corrígelos cuando toques esas secciones.
+- **Enlaces compartidos en Render**: se guardan en `data/shared_schedules/`, pero
+  el disco del plan gratuito de Render se borra en cada despliegue o reinicio,
+  así que los enlaces viejos acaban dando 404. Solución prevista: meter el
+  horario en la propia URL (ver sección 14).
+- **Desbordamiento en móvil**: con 390 px de ancho la página mide ~738 px por el
+  ancho mínimo de `.timetable-panel`; los diálogos salen descentrados. Ya
+  pasaba antes del refactor.
+- **Paridad JS/Python**: el mismo grupo en dos aulas a la vez cuenta como solape
+  en `schedule.js` pero no en `scheduling/` (Python ya lo ignora).
+- El `README.md` estaba al día al cerrar este archivo (113 tests, Python 3.10+,
+  sincronización semana a semana); si cambias el comportamiento, revísalo.
 
 ## 14. Ideas pendientes (no empezar sin que se pida)
 
-- Publicar la web solo con GitHub Pages + GitHub Actions. Implica:
-  - portar a JS la validación y "Resolver solapes";
-  - servir el catálogo como JSON estático;
-  - meter los horarios compartidos en la URL.
-
-  Alternativa: un hosting con backend (Render, Railway…) conectado al repo.
-- Sincronización programada y avisos de cambios de clase.
-- Huecos comunes entre varios estudiantes.
-- Cuentas, persistencia en base de datos y suscripción `.ics` actualizable.
+- **Dejar Render y publicar solo con GitHub Pages + GitHub Actions** (el usuario
+  lo está considerando; Pages gratis exige repo público). Plan acordado:
+  - un Action ejecuta Python al publicar y genera JSON estáticos
+    (`degrees`, un archivo por curso para no bajar los 4,7 MB enteros);
+  - la validación pasa a ser solo la de `schedule.js` (ya casi completa);
+  - portar a JS "Resolver solapes" (`scheduling/repair.py`): es lo más costoso;
+  - `.ics` generado en JS (como el PDF);
+  - compartir metiendo el horario en la URL (arregla además la sección 13).
+- **Cuentas** con el horario guardado: factible, dificultad media. Lo guardado
+  sería el mismo objeto que `horario:last-v2`. Hace falta una base de datos
+  externa (Supabase/Neon; el disco de Render no persiste y su Postgres gratis
+  caduca) y, mejor que contraseñas propias, inicio de sesión con Google o enlace
+  mágico (Supabase Auth). Alternativa ligera: código de sincronización privado.
+- Otras propuestas hechas al usuario: app instalable (PWA), suscripción `.ics`
+  que se actualiza sola, resumen de carga semanal, comparar horarios con amigos
+  (huecos comunes), sincronización programada con avisos de cambios de clase.
+- Pendiente de respuesta del usuario: qué laboratorios de Informática/IA están
+  en Condesa (se añadiría un patrón `rooms` en `config.yaml`).

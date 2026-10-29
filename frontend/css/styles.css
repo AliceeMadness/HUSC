@@ -674,7 +674,6 @@ svg { display: block; }
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--danger) 15%, transparent);
 }
 .group-pill.is-selected.is-conflict::after { background: #fff; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
-.group-pill.is-pref-conflict { border-style: dashed; }
 
 /* --------------------------------------------------------------------------
    Main column, toolbar, alerts
@@ -927,7 +926,6 @@ svg { display: block; }
     repeating-linear-gradient(135deg, color-mix(in oklab, var(--danger) 9%, var(--surface)) 0 7px, color-mix(in oklab, var(--danger) 16%, var(--surface)) 7px 14px);
   box-shadow: inset 0 0 0 1.5px var(--danger);
 }
-.tt-block.is-pref:not(.is-conflict) { box-shadow: inset 0 0 0 1.5px var(--warn); }
 .tt-block.is-pinned::after {
   content: "⚑";
   position: absolute;
@@ -1090,6 +1088,42 @@ svg { display: block; }
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+.event-weeks-field { margin: 0; padding: 0; border: none; }
+.event-weeks-field legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.event-weeks-mode { display: flex; gap: 6px; margin-top: 6px; }
+.event-weeks-mode label,
+.week-chip { position: relative; cursor: pointer; }
+.event-weeks-mode input,
+.week-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.event-weeks-mode span,
+.week-chip span {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  font-weight: 620;
+  transition: background 130ms ease, border-color 130ms ease, color 130ms ease;
+}
+.event-weeks-mode span { height: 30px; padding: 0 12px; font-size: 11.5px; }
+.event-weeks-mode input:checked + span,
+.week-chip input:checked + span { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.event-weeks-mode input:focus-visible + span,
+.week-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.event-weeks { display: grid; gap: 10px; max-height: 220px; margin-top: 9px; padding-right: 4px; overflow-y: auto; }
+.event-weeks-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.event-weeks-head strong { color: var(--ink-soft); font-size: 11px; }
+.event-weeks-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.week-chip span { height: 26px; padding: 0 9px; font-family: var(--font-mono); font-size: 10px; }
+.week-chip.is-today span { border-color: var(--accent); }
 .event-colors { display: flex; gap: 8px; margin-top: 6px; }
 .event-colors label { position: relative; display: grid; place-items: center; cursor: pointer; }
 .event-colors input { position: absolute; opacity: 0; }

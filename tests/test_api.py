@@ -606,3 +606,125 @@ def test_optimize_without_groups_changes_nothing() -> None:
     ).json()
     assert payload["status"] == "unchanged"
     assert payload["group_ids"] == []
+
+
+# ---------------------------------------------------------------------------
+# Extracurricular activities in some weeks only
+# ---------------------------------------------------------------------------
+
+
+def _session_with_weeks():
+    """A class taught in some weeks, one of its weeks and a week it skips."""
+
+    calendar = [week.id for week in store.catalog.term.calendar]
+    for session in store.catalog.class_sessions:
+        if session.weeks and len(session.weeks) >= 2:
+            skipped = [week for week in calendar if week not in session.weeks]
+            if skipped:
+                return session, session.weeks[0], skipped[0]
+    raise AssertionError("the catalogue has no class taught only in some weeks")
+
+
+def _event_over(session, weeks):
+    return {
+        "id": "evt-test",
+        "title": "Academia",
+        "day": session.day.value,
+        "start": session.start,
+        "end": session.end,
+        "weeks": weeks,
+    }
+
+
+def test_event_weeks_are_validated() -> None:
+    session, week, _ = _session_with_weeks()
+    base = {"group_ids": [session.group_id]}
+    empty = client.post("/api/schedules/validate", json={**base, "custom_events": [_event_over(session, [])]})
+    assert empty.status_code == 422
+    wrong = client.post("/api/schedules/validate", json={**base, "custom_events": [_event_over(session, ["semana-1"])]})
+    assert wrong.status_code == 422
+    ok = client.post(
+        "/api/schedules/validate",
+        json={**base, "custom_events": [_event_over(session, [week, week])]},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["custom_events"][0]["weeks"] == [week]
+
+
+def test_event_only_clashes_in_its_weeks() -> None:
+    session, taught, skipped = _session_with_weeks()
+
+    def clashes(weeks):
+        payload = client.post(
+            "/api/schedules/validate",
+            json={"group_ids": [session.group_id], "custom_events": [_event_over(session, weeks)]},
+        ).json()
+        return payload["stats"]["event_conflict_count"]
+
+    assert clashes(None) >= 1
+    assert clashes([taught]) >= 1
+    assert clashes([skipped]) == 0
+
+
+def test_event_free_slots_follow_the_week() -> None:
+    session, taught, skipped = _session_with_weeks()
+    event = _event_over(session, [skipped])
+    event["start"], event["end"] = "08:00", "21:00"
+
+    def free_on_day(week):
+        payload = client.post(
+            "/api/schedules/validate",
+            json={"group_ids": [], "custom_events": [event], "week": week, "min_free_minutes": 0},
+        ).json()
+        return [slot for slot in payload["free_slots"] if slot["day"] == session.day.value]
+
+    assert free_on_day(skipped) == []
+    assert free_on_day(taught)
+
+
+def test_optimize_ignores_events_of_other_weeks() -> None:
+    session, _, skipped = _session_with_weeks()
+    subject_id = session.subject_id
+    payload = client.post(
+        "/api/schedules/optimize",
+        json={
+            "subject_ids": [subject_id],
+            "group_ids": [session.group_id],
+            "custom_events": [_event_over(session, [skipped])],
+        },
+    ).json()
+    assert payload["status"] == "unchanged"
+    assert payload["group_ids"] == [session.group_id]
+
+
+def test_ics_dates_events_with_weeks() -> None:
+    session, taught, skipped = _session_with_weeks()
+    weekly = _event_over(session, None)
+    weekly["id"] = "evt-weekly"
+    some = _event_over(session, [taught, skipped])
+    some["id"] = "evt-some"
+    response = client.post(
+        "/api/schedules/export.ics",
+        json={"group_ids": [session.group_id], "custom_events": [weekly, some]},
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert body.count("UID:evt-some-") == 2
+    assert "UID:evt-weekly@horario.usc" in body
+    some_events = [chunk for chunk in body.split("BEGIN:VEVENT") if "UID:evt-some-" in chunk]
+    assert all("RRULE" not in chunk for chunk in some_events)
+
+
+def test_share_keeps_event_weeks() -> None:
+    session, taught, _ = _session_with_weeks()
+    response = client.post(
+        "/api/schedules/share",
+        json={"group_ids": [session.group_id], "custom_events": [_event_over(session, [taught])]},
+    )
+    assert response.status_code == 201
+    share_id = response.json()["share"]["id"]
+    try:
+        loaded = client.get(f"/api/shared/{share_id}").json()
+        assert loaded["share"]["custom_events"][0]["weeks"] == [taught]
+    finally:
+        (SHARED_DIR / f"{share_id}.json").unlink(missing_ok=True)

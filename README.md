@@ -51,7 +51,7 @@ cada semana del curso y permite compartir o exportar el resultado.
   solapes» no lo toca; otro clic lo desfija.
 - **Compartir** con un enlace corto (se guarda una instantánea en el servidor,
   incluyendo extraescolares y fijaciones).
-- **Exportar** a JSON, calendario `.ics` o PDF mediante impresión.
+- **Exportar** a JSON, calendario `.ics` o PDF (la semana que se ve, en A4 apaisado, generado en el navegador y descargado directamente).
 - **Sincronización real con la USC** usando el mismo acceso AJAX que la app de
   referencia, con fallback sintético en SQLite.
 - **Colores USC** (azul `#000066` / `#004c93` de usc.gal), tema claro/oscuro,
@@ -61,7 +61,7 @@ cada semana del curso y permite compartir o exportar el resultado.
 
 | Capa | Tecnología |
 | --- | --- |
-| Backend | Python 3.11+ · FastAPI · Pydantic v2 |
+| Backend | Python 3.10+ · FastAPI · Pydantic v2 |
 | Datos | JSON versionado con JSON Schema + validación referencial |
 | Ingesta USC | `httpx` + BeautifulSoup + SQLite (`data/usc_sync.db`) |
 | Frontend | HTML + CSS + JavaScript ES modules, sin build step |
@@ -101,11 +101,11 @@ uvicorn backend.main:app --reload
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-90 tests cubren integridad del catálogo, importación, detección de solapes,
-huecos, generación para los nueve cursos y para matrículas que mezclan
-cursos/grados, bloques consecutivos, extraescolares, fijaciones, preferencias,
-enlaces compartidos, ICS, parser USC, fallback SQLite y los endpoints
-principales. La interfaz obtiene 100/100 en accesibilidad, buenas prácticas y SEO
+113 tests cubren integridad del catálogo, importación, detección de solapes
+semana a semana, huecos, generación y reparación de solapes («Resolver
+solapes»), matrículas que mezclan cursos/grados, bloques consecutivos,
+extraescolares (también limitadas a algunas semanas), fijaciones, enlaces
+compartidos, ICS, parser USC, fallback SQLite y los endpoints principales. La interfaz obtiene 100/100 en accesibilidad, buenas prácticas y SEO
 con Lighthouse, tanto en tema claro como oscuro.
 
 ## Estructura
@@ -113,8 +113,11 @@ con Lighthouse, tanto en tema claro como oscuro.
 ```text
 backend/
   main.py          API FastAPI + servido de la SPA
+  schemas.py       modelos de las peticiones
+  ics.py           exportación a calendario
   models.py        modelo Pydantic y validación referencial
-  scheduling.py    solver, solapes, huecos, bloques unidos, fijaciones
+  scheduling/      solapes, validación, huecos, bloques unidos, generador y
+                   reparación ("Resolver solapes"), un módulo por tarea
   store.py         índices del catálogo y persistencia de enlaces
   usc_source.py    acceso AJAX a la USC + fallback sintético + SQLite
   timeutil.py      horas HH:MM y días
@@ -122,7 +125,8 @@ backend/
 frontend/
   index.html
   css/styles.css
-  js/app.js        estado, UI, generación, compartir, exportar
+  js/              ES modules sin build: app.js (entrada), state, render,
+                   schedule (solapes), plan, resolve, share… (ver AGENTS.md)
   js/timetable.js  render del calendario y layout de solapes
   js/api.js        cliente HTTP
 data/
@@ -166,7 +170,7 @@ Ejemplo de generación:
 # Curso completo
 curl -X POST http://127.0.0.1:8000/api/schedules/generate \
   -H 'Content-Type: application/json' \
-  -d '{"year_id":"year-matematicas-1","blocked":[{"day":"fri","start":"08:00","end":"21:00"}]}'
+  -d '{"year_id":"year-matematicas-1"}'
 
 # Matrícula mixta: 1º de Matemáticas + 2º de Matemáticas + 1º de Mates-Física
 curl -X POST http://127.0.0.1:8000/api/schedules/generate \
@@ -277,13 +281,13 @@ de UI. Las referencias son ids; los nombres viven en su propia entidad. El
 - **Sin cuentas ni profesores.** El enlace compartido es una instantánea, no un
   documento colaborativo. El modelo ya reserva `instructors` por sesión y
   `kind` por aula para futuras extensiones.
-- **Datos incluidos.** El catálogo es una sincronización real de la semana 43
-  (2025/26) con los 6 grados. `scripts/sync_usc.py` permite refrescarlo desde la
+- **Datos incluidos.** El catálogo es una sincronización real, semana a semana,
+  del curso 2025/26 con los 6 grados. `scripts/sync_usc.py` permite refrescarlo desde la
   USC; si falla, genera un fallback sintético en SQLite. `scripts/import_legacy.py`
   queda solo para reproducir el snapshot CSV antiguo de Matemáticas/Mates-Física.
-- **Aulas y edificios.** No se ha contrastado cada aula con la fuente oficial;
-  el edificio se infiere del grado. La sincronización real mantiene las aulas
-  que publica la USC.
+- **Aulas y edificios.** El edificio sale de la fuente de cada curso, salvo las
+  aulas que `config.yaml` asigna a otro edificio (las `IA.*` a Emprendia; las
+  aulas B, C y D y los laboratorios de instrumentación a Condesa).
 
 ## Próximos pasos
 

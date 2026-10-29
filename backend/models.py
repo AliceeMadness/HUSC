@@ -8,6 +8,7 @@ to consume from any client.
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from enum import Enum
 
@@ -210,6 +211,8 @@ class CustomEvent(StrictModel):
 
     These events are not part of the university catalogue.  They are carried by
     validate/generate/share requests and act as occupied time for the solver.
+    Like ``ClassSession.weeks``, ``weeks`` lists the ISO weeks it happens in;
+    ``None`` means every week.
     """
 
     id: str = Field(min_length=1, max_length=100)
@@ -221,6 +224,19 @@ class CustomEvent(StrictModel):
     color: str | None = Field(default=None, max_length=20)
     kind: str = "extracurricular"
     note: str | None = Field(default=None, max_length=300)
+    weeks: list[str] | None = Field(default=None, max_length=60)
+
+    @field_validator("weeks")
+    @classmethod
+    def _valid_weeks(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        if not value:
+            raise ValueError("una extraescolar con semanas necesita al menos una semana")
+        invalid = [week for week in value if not re.match(WEEK_ID_RE, week)]
+        if invalid:
+            raise ValueError(f"semanas no válidas: {', '.join(invalid)}")
+        return sorted(set(value))
 
     @field_validator("day")
     @classmethod

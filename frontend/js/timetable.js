@@ -121,7 +121,6 @@ export function renderTimetable(container, options) {
     duration_minutes: toMinutes(event.end) - toMinutes(event.start),
     day_label: DAY_LABELS[event.day] ?? event.day,
     has_conflict: false,
-    has_pref_conflict: false,
   }));
 
   const columns = DAYS.map((day) => {
@@ -141,7 +140,6 @@ export function renderTimetable(container, options) {
         duration < 45 ? "is-short" : "",
         isEvent ? "is-event" : "",
         !isEvent && session.has_conflict ? "is-conflict" : "",
-        !isEvent && session.has_pref_conflict ? "is-pref" : "",
         !isEvent && session.pinned ? "is-pinned" : "",
         session.has_event_conflict ? "is-event-conflict" : "",
       ]
@@ -151,7 +149,9 @@ export function renderTimetable(container, options) {
         ? [
             `${session.title} ${session.location || "Extraescolar"}.`,
             `${session.day_label} ${session.start}–${session.end}.`,
-            "Actividad extraescolar semanal.",
+            session.weeks
+              ? `Actividad extraescolar de ${session.weeks.length} semana${session.weeks.length === 1 ? "" : "s"}.`
+              : "Actividad extraescolar semanal.",
             session.has_event_conflict ? "¡Solapa con una clase!" : "",
           ]
             .filter(Boolean)
@@ -164,7 +164,6 @@ export function renderTimetable(container, options) {
               ? `Bloque unido de ${session.source_session_ids.length} sesiones.`
               : "",
             session.has_conflict ? "¡Solapa con otra clase!" : "",
-            session.has_pref_conflict ? "Cae en una franja que querías evitar." : "",
             session.has_event_conflict ? "¡Solapa con una extraescolar!" : "",
             session.pinned
               ? "Grupo fijado: «Resolver solapes» no lo cambiará. Clic para desfijar."
@@ -221,4 +220,4 @@ export function renderTimetable(container, options) {
     </div>`;
 }
 
-export { DAYS, formatDuration, toMinutes };
+export { DAYS, formatDuration, layoutDay, toMinutes };

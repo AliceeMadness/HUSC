@@ -474,167 +474,158 @@ def last_run(path: Path = DB_PATH) -> dict | None:
         connection.close()
 
 
-def sync(
-    *,
-    config_path: Path = CONFIG_PATH,
-    forms_path: Path = FORMS_PATH,
-    db_path: Path = DB_PATH,
-    csv_path: Path = CSV_PATH,
-    catalog_path: Path = CATALOG_PATH,
-    force_synthetic: bool = False,
-    timeout: float = 30.0,
-    single_week: bool = False,
-    workers: int = 8,
-) -> dict:
-    config = load_config(config_path)
-    semesters = configured_semesters(config, single_week=single_week)
-    client = httpx.Client(timeout=timeout, follow_redirects=True)
+def _fetch_week(
+    client: httpx.Client,
+    timeout: float,
+    url: str,
+    week: str | None,
+    course_label: str,
+    weekly: bool,
+) -> list[dict]:
+    """One widget week, retried up to three times."""
 
-    def fetch_week(url: str, week: str | None, course_label: str, weekly: bool) -> list[dict]:
-        last_error: Exception | None = None
-        for _ in range(3):
-            try:
-                return fetch_course(
-                    semester_url(url, week),
-                    course_label,
-                    timeout=timeout,
-                    client=client,
-                    allow_empty=weekly,
-                )
-            except Exception as error:  # noqa: BLE001 - retried, then reported
-                last_error = error
-        raise last_error  # type: ignore[misc]
-    forms = json.loads(forms_path.read_text(encoding="utf-8"))
-    degrees = config.get("degrees") or []
-    if not degrees:
-        raise ValueError("config.yaml no contiene la lista 'degrees'")
+    last_error: Exception | None = None
+    for _ in range(3):
+        try:
+            # Looked up on the module at call time so tests can replace it.
+            return fetch_course(
+                semester_url(url, week),
+                course_label,
+                timeout=timeout,
+                client=client,
+                allow_empty=weekly,
+            )
+        except Exception as error:  # noqa: BLE001 - retried, then reported
+            last_error = error
+    raise last_error  # type: ignore[misc]
 
-    started = datetime.now(timezone.utc)
+
+def _fetch_semester(
+    client: httpx.Client,
+    timeout: float,
+    workers: int,
+    semester: dict,
+    sources: list[dict],
+    default_building: str,
+    course_label: str,
+    notes: list[str],
+) -> tuple[list[dict], list[str]]:
+    """Rows of one semester of a course from all its sources, and the errors
+    of the sources that failed for every week."""
+
     rows: list[dict] = []
-    notes: list[str] = []
-    course_map: dict[str, dict] = {}
-    live_courses = 0
-    synthetic_courses = 0
-
-    for degree in degrees:
-        degree_id = str(degree.get("id", "")).strip()
-        if not degree_id:
+    errors: list[str] = []
+    weekly = len(semester["weeks"]) > 1
+    for source in sources:
+        url = (source.get("url") or "").strip()
+        building = source.get("building") or default_building
+        if not url:
             continue
-        degree_name = degree.get("name", degree_id)
-        short_name = degree.get("short_name", degree_name)
-        default_building = degree.get("building") or "Sin edificio"
-        campus_name = degree.get("campus") or "Campus Vida"
-        for year in degree.get("years") or []:
-            number = int(year.get("number"))
-            year_name = year.get("name") or f"{number}º"
-            course_label = f"{short_name} · {number}º"
-            course_map[course_label] = {
-                "degree_key": degree_id,
-                "degree_id": f"deg-{degree_id}",
-                "degree_name": degree_name,
-                "short_name": short_name,
-                "year_number": number,
-                "year_name": year_name,
-                "building_name": default_building,
-                "campus_name": campus_name,
-            }
-            sources = year.get("sources") or []
-            course_rows: list[dict] = []
-            source_errors: list[str] = []
-            later_rows: list[dict] = []
-            if not force_synthetic:
-                for semester in semesters:
-                    semester_rows: list[dict] = []
-                    semester_errors: list[str] = []
-                    weekly = len(semester["weeks"]) > 1
-                    for source in sources:
-                        url = (source.get("url") or "").strip()
-                        building = source.get("building") or default_building
-                        if not url:
-                            continue
-                        failed_weeks: list[str] = []
-                        last_error = ""
-                        with ThreadPoolExecutor(max_workers=workers) as pool:
-                            futures = [
-                                (week, pool.submit(fetch_week, url, week, course_label, weekly))
-                                for week in semester["weeks"]
-                            ]
-                            for week, future in futures:
-                                try:
-                                    fetched = future.result()
-                                except Exception as error:  # noqa: BLE001 - fallback per course
-                                    failed_weeks.append(week or "")
-                                    last_error = f"{type(error).__name__}: {error}"
-                                    continue
-                                for row in fetched:
-                                    row["course"] = course_label
-                                    row["building"] = building
-                                    row["source"] = "usc"
-                                    row["semester"] = semester["number"]
-                                    # A single typical week stands for every week.
-                                    row["week"] = week_id(week) if weekly and week else None
-                                semester_rows.extend(fetched)
-                        if len(failed_weeks) == len(semester["weeks"]):
-                            semester_errors.append(last_error)
-                        elif failed_weeks:
-                            notes.append(
-                                f"{course_label}: {semester['number']}C sin las semanas "
-                                f"{', '.join(failed_weeks)} ({last_error})"
-                            )
-                    if weekly and not semester_rows and not semester_errors:
-                        semester_errors.append("ninguna semana del rango tiene clases")
-                    if semester["number"] == 1:
-                        course_rows, source_errors = semester_rows, semester_errors
-                    elif semester_errors:
-                        # Later terms are optional: without them the year simply
-                        # has no second-semester subjects.
-                        notes.append(
-                            f"{course_label}: {semester['number']}C no disponible "
-                            f"({'; '.join(semester_errors)})"
-                        )
-                    else:
-                        later_rows.extend(semester_rows)
-
-            if force_synthetic or source_errors or not course_rows:
-                reason = "forzado" if force_synthetic else "sin fuente disponible"
-                if source_errors:
-                    reason = "; ".join(source_errors)
-                synthetic = synthetic_rows(
-                    course_label,
-                    forms,
-                    degree=degree,
-                    year_number=number,
-                )
-                for row in synthetic:
+        failed_weeks: list[str] = []
+        last_error = ""
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                (week, pool.submit(_fetch_week, client, timeout, url, week, course_label, weekly))
+                for week in semester["weeks"]
+            ]
+            for week, future in futures:
+                try:
+                    fetched = future.result()
+                except Exception as error:  # noqa: BLE001 - fallback per course
+                    failed_weeks.append(week or "")
+                    last_error = f"{type(error).__name__}: {error}"
+                    continue
+                for row in fetched:
                     row["course"] = course_label
-                    row["building"] = default_building
-                    row["source"] = "synthetic"
-                course_rows = synthetic
-                synthetic_courses += 1
-                notes.append(f"{course_label}: sintético ({reason})")
+                    row["building"] = building
+                    row["source"] = "usc"
+                    row["semester"] = semester["number"]
+                    # A single typical week stands for every week.
+                    row["week"] = week_id(week) if weekly and week else None
+                rows.extend(fetched)
+        if len(failed_weeks) == len(semester["weeks"]):
+            errors.append(last_error)
+        elif failed_weeks:
+            notes.append(
+                f"{course_label}: {semester['number']}C sin las semanas "
+                f"{', '.join(failed_weeks)} ({last_error})"
+            )
+    if weekly and not rows and not errors:
+        errors.append("ninguna semana del rango tiene clases")
+    return rows, errors
+
+
+def _course_meta(degree: dict, year: dict) -> tuple[str, dict]:
+    """``(course label, metadata)`` of a year of a degree in config.yaml."""
+
+    degree_id = str(degree.get("id", "")).strip()
+    degree_name = degree.get("name", degree_id)
+    short_name = degree.get("short_name", degree_name)
+    number = int(year.get("number"))
+    return f"{short_name} · {number}º", {
+        "degree_key": degree_id,
+        "degree_id": f"deg-{degree_id}",
+        "degree_name": degree_name,
+        "short_name": short_name,
+        "year_number": number,
+        "year_name": year.get("name") or f"{number}º",
+        "building_name": degree.get("building") or "Sin edificio",
+        "campus_name": degree.get("campus") or "Campus Vida",
+    }
+
+
+def _course_rows(
+    fetch_semester,
+    semesters: list[dict],
+    degree: dict,
+    year: dict,
+    course_label: str,
+    forms: dict,
+    force_synthetic: bool,
+    notes: list[str],
+) -> tuple[list[dict], bool]:
+    """Rows of one course and whether they are live.
+
+    The first semester is mandatory: without it the course is replaced by
+    synthetic data.  Later semesters are optional: without them the course
+    simply has no subjects in that term.
+    """
+
+    default_building = degree.get("building") or "Sin edificio"
+    sources = year.get("sources") or []
+    course_rows: list[dict] = []
+    source_errors: list[str] = []
+    later_rows: list[dict] = []
+    if not force_synthetic:
+        for semester in semesters:
+            semester_rows, semester_errors = fetch_semester(semester, sources, default_building, course_label)
+            if semester["number"] == 1:
+                course_rows, source_errors = semester_rows, semester_errors
+            elif semester_errors:
+                notes.append(
+                    f"{course_label}: {semester['number']}C no disponible "
+                    f"({'; '.join(semester_errors)})"
+                )
             else:
-                live_courses += 1
-                course_rows.extend(later_rows)
-                notes.append(f"{course_label}: {len(course_rows)} sesiones desde la USC")
+                later_rows.extend(semester_rows)
 
-            rows.extend(course_rows)
+    if force_synthetic or source_errors or not course_rows:
+        reason = "forzado" if force_synthetic else "sin fuente disponible"
+        if source_errors:
+            reason = "; ".join(source_errors)
+        synthetic = synthetic_rows(course_label, forms, degree=degree, year_number=int(year.get("number")))
+        for row in synthetic:
+            row["course"] = course_label
+            row["building"] = default_building
+            row["source"] = "synthetic"
+        notes.append(f"{course_label}: sintético ({reason})")
+        return synthetic, False
+    course_rows.extend(later_rows)
+    notes.append(f"{course_label}: {len(course_rows)} sesiones desde la USC")
+    return course_rows, True
 
-    if not rows:
-        raise RuntimeError("No se pudo obtener ninguna sesión (ni real ni sintética)")
 
-    rules = building_rules(config)
-    for row in rows:
-        row["building"] = building_for_room(row.get("room", ""), row.get("building") or "", rules)
-
-    mode = (
-        "live"
-        if live_courses and not synthetic_courses
-        else "synthetic"
-        if synthetic_courses and not live_courses
-        else "mixed"
-    )
-    write_legacy_csv(rows, csv_path)
-
+def _save_run(db_path: Path, started: datetime, mode: str, notes: list[str], rows: list[dict]) -> None:
     connection = init_db(db_path)
     try:
         cursor = connection.execute(
@@ -671,6 +662,69 @@ def sync(
         connection.commit()
     finally:
         connection.close()
+
+
+def sync(
+    *,
+    config_path: Path = CONFIG_PATH,
+    forms_path: Path = FORMS_PATH,
+    db_path: Path = DB_PATH,
+    csv_path: Path = CSV_PATH,
+    catalog_path: Path = CATALOG_PATH,
+    force_synthetic: bool = False,
+    timeout: float = 30.0,
+    single_week: bool = False,
+    workers: int = 8,
+) -> dict:
+    config = load_config(config_path)
+    semesters = configured_semesters(config, single_week=single_week)
+    client = httpx.Client(timeout=timeout, follow_redirects=True)
+    forms = json.loads(forms_path.read_text(encoding="utf-8"))
+    degrees = config.get("degrees") or []
+    if not degrees:
+        raise ValueError("config.yaml no contiene la lista 'degrees'")
+
+    started = datetime.now(timezone.utc)
+    rows: list[dict] = []
+    notes: list[str] = []
+    course_map: dict[str, dict] = {}
+    live_courses = 0
+    synthetic_courses = 0
+
+    def fetch_semester(semester, sources, default_building, course_label):
+        return _fetch_semester(client, timeout, workers, semester, sources, default_building, course_label, notes)
+
+    for degree in degrees:
+        if not str(degree.get("id", "")).strip():
+            continue
+        for year in degree.get("years") or []:
+            course_label, meta = _course_meta(degree, year)
+            course_map[course_label] = meta
+            course_rows, live = _course_rows(
+                fetch_semester, semesters, degree, year, course_label, forms, force_synthetic, notes
+            )
+            if live:
+                live_courses += 1
+            else:
+                synthetic_courses += 1
+            rows.extend(course_rows)
+
+    if not rows:
+        raise RuntimeError("No se pudo obtener ninguna sesión (ni real ni sintética)")
+
+    rules = building_rules(config)
+    for row in rows:
+        row["building"] = building_for_room(row.get("room", ""), row.get("building") or "", rules)
+
+    mode = (
+        "live"
+        if live_courses and not synthetic_courses
+        else "synthetic"
+        if synthetic_courses and not live_courses
+        else "mixed"
+    )
+    write_legacy_csv(rows, csv_path)
+    _save_run(db_path, started, mode, notes, rows)
 
     # The catalogue builder is the same one used by the CSV importer, so the
     # app-facing contract does not change when the source is live or synthetic.

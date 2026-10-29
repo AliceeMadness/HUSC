@@ -206,9 +206,9 @@
         <span class="export-icon">◷</span>
         <span><strong>Calendario .ics</strong><small>15 semanas desde el próximo lunes</small></span>
       </button>
-      <button class="export-option" id="export-print" type="button">
-        <span class="export-icon">⌘</span>
-        <span><strong>Imprimir / PDF</strong><small>Vista limpia para papel</small></span>
+      <button class="export-option" id="export-pdf" type="button">
+        <span class="export-icon">⤓</span>
+        <span><strong>PDF</strong><small>La semana que ves, en A4 apaisado</small></span>
       </button>
     </div>
   </dialog>
@@ -223,7 +223,7 @@
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <p class="dialog-copy">Se repite cada semana. Te avisamos si coincide con una clase y «Resolver solapes» la respeta.</p>
+    <p class="dialog-copy">Se repite cada semana o solo en las que elijas. Te avisamos si coincide con una clase y «Resolver solapes» la respeta.</p>
     <form class="event-form" id="event-form">
       <label class="form-field form-field-wide">
         <span>Título</span>
@@ -253,6 +253,14 @@
         <span>Lugar <small>opcional</small></span>
         <input id="event-location" type="text" maxlength="120" placeholder="Pabellón, aula, oficina…">
       </label>
+      <fieldset class="event-weeks-field" id="event-weeks-field">
+        <legend>Semanas</legend>
+        <div class="event-weeks-mode">
+          <label><input type="radio" name="event-weeks-mode" value="all" checked><span>Todas las semanas</span></label>
+          <label><input type="radio" name="event-weeks-mode" value="some"><span>Solo algunas</span></label>
+        </div>
+        <div class="event-weeks hidden" id="event-weeks"></div>
+      </fieldset>
       <fieldset class="event-color-field">
         <legend>Color</legend>
         <div class="event-colors" id="event-colors">
