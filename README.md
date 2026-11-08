@@ -49,9 +49,9 @@ cada semana del curso y permite compartir o exportar el resultado.
   para cerrarla.
 - **Grupos fijados**: un clic en una clase fija su grupo (⚑) y «Resolver
   solapes» no lo toca; otro clic lo desfija.
-- **Compartir** con un enlace corto (se guarda una instantánea en el servidor,
-  incluyendo extraescolares y fijaciones).
-- **Exportar** a JSON, calendario `.ics` o PDF (la semana que se ve, en A4 apaisado, generado en el navegador y descargado directamente).
+- **Compartir** con un enlace directo en la URL (incluyendo grupos elegidos, extraescolares y fijaciones, sin depender de base de datos ni servidor).
+- **Exportar** a JSON, calendario `.ics` o PDF (la semana que se ve, en A4 apaisado, generado 100% en el navegador y descargado directamente).
+- **Alojable en GitHub Pages**: la aplicación puede funcionar como SPA totalmente estática (con GitHub Actions en `.github/workflows/deploy.yml`) o servida mediante FastAPI.
 - **Sincronización real con la USC** usando el mismo acceso AJAX que la app de
   referencia, con fallback sintético en SQLite.
 - **Colores USC** (azul `#000066` / `#004c93` de usc.gal), tema claro/oscuro,

@@ -338,6 +338,10 @@ def export_ics_with_events(payload: ICSRequest) -> Response:
 # Static SPA (mounted last so /api keeps priority)
 # ---------------------------------------------------------------------------
 
+DATA_DIR = ROOT / "data"
+if DATA_DIR.exists():
+    app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
+
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 

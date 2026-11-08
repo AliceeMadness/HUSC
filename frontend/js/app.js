@@ -75,8 +75,25 @@ async function openFromUrl() {
   const saved = readSaved();
   const requestedPlan = params.get("plan");
   const requestedYear = params.get("year");
+  const requestedGroups = params.get("groups");
+  const requestedPins = params.get("pins");
+  const requestedEvents = params.get("events");
   const planIds = (requestedPlan ?? "").split(",").map((item) => item.trim()).filter(Boolean);
   if (planIds.length) {
+    if (requestedGroups !== null) {
+      const groupIds = (requestedGroups ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+      const pinnedGroupIds = (requestedPins ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+      let customEvents = [];
+      if (requestedEvents) {
+        try {
+          customEvents = JSON.parse(requestedEvents);
+        } catch {
+          /* ignore malformed custom events in url */
+        }
+      }
+      await openPlan(planIds, { groupIds, pinnedGroupIds, customEvents });
+      return;
+    }
     const samePlan = saved?.subjectIds && sameSubjectSet(saved.subjectIds, planIds);
     await openPlan(planIds, saved ? savedPlanOptions(saved, samePlan) : {});
     return;

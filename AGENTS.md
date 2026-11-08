@@ -139,22 +139,24 @@ horario.csv, forms_data.json  Datos legacy de la primera versión
 ## 4. Arquitectura y flujo de datos
 
 ```text
-USC (Drupal AJAX) ──sync_usc.py──▶ data/catalog.json ──CatalogStore──▶ FastAPI /api/*
-                                                                         │
-                         navegador ◀── fetch (api.js) ──────────────────┘
-                         js/: estado, solapes locales instantáneos,
-                         validación/reparación en servidor, localStorage
+USC (Drupal AJAX) ──sync_usc.py──▶ data/catalog.json
+                                          │
+            ┌─────────────────────────────┴─────────────────────────────┐
+            ▼                                                           ▼
+(Modo estático / GitHub Pages)                             (Modo servidor / local)
+fetch("./data/catalog.json") ──▶ client-store.js           CatalogStore ──▶ FastAPI /api/*
+       │                                                                  │
+navegador: solapes locales, repair.js (resolver solapes),        navegador: fallback
+ics-export.js (.ics), share.js (URL params), localStorage
 ```
 
-- **El servidor es la fuente de verdad** para validar (`/api/schedules/validate`)
-  y reparar (`/api/schedules/optimize`).
-- **El frontend recalcula solapes en local** (`buildLocalSchedule`,
-  `groupConflicts`, `sessionsOverlap`, `sharesWeek`) para que la UI responda
-  al instante. La validación del servidor llega con debounce
-  (`scheduleValidation` → `refreshValidation`, con `validationToken` para
-  descartar respuestas viejas).
+- **La aplicación es 100% autónoma en el navegador para GitHub Pages**, cargando `data/catalog.json` directamente con `client-store.js`.
+- La reparación de solapes se ejecuta en el navegador con `frontend/js/repair.js` (gemela de `backend/scheduling/repair.py`).
+- La exportación a `.ics` se realiza en cliente con `frontend/js/ics-export.js`.
+- Los enlaces compartidos van codificados directamente en la URL (`?plan=...&groups=...&pins=...&events=...`), sin necesidad de backend ni base de datos en disco.
+- El servidor FastAPI se mantiene disponible para desarrollo local y ejecución de la suite de tests (`pytest`).
 - Si cambias la lógica de solape en `scheduling/common.py` y `scheduling/views.py`,
-  **cambia también su gemela en `frontend/js/schedule.js`** (y viceversa). Son dos implementaciones de la misma regla:
+  **cambia también su gemela en `frontend/js/schedule.js` y `frontend/js/repair.js`** (y viceversa). Son implementaciones de la misma regla:
   - mismo día,
   - intervalos `[start, end)` que se cortan (tocarse en el borde no es solape),
   - mismo cuatrimestre,

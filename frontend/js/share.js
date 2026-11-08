@@ -47,29 +47,29 @@ export async function loadShared(shareId) {
   }
 }
 
-export async function shareSchedule() {
+export function shareSchedule() {
   const ids = allSelectedGroupIds();
   if (!ids.length) {
     toast("Elige algún grupo antes de compartir.", { type: "warn" });
     return;
   }
-  els.shareBtn.disabled = true;
   try {
-    const response = await api.share({
-      subject_ids: state.planSubjectIds,
-      title: planLabel(),
-      group_ids: ids,
-      custom_events: state.customEvents,
-      pinned_group_ids: [...state.pinnedGroupIds],
-    });
-    els.shareUrl.value = shareUrl(response.share.id).toString();
-    els.shareNote.textContent = `Copia guardada con id ${response.share.id}. Cualquiera con el enlace verá esta combinación.`;
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("plan", state.planSubjectIds.join(","));
+    url.searchParams.set("groups", ids.join(","));
+    if (state.pinnedGroupIds.size > 0) {
+      url.searchParams.set("pins", [...state.pinnedGroupIds].join(","));
+    }
+    if (state.customEvents && state.customEvents.length > 0) {
+      url.searchParams.set("events", JSON.stringify(state.customEvents));
+    }
+    els.shareUrl.value = url.toString();
+    els.shareNote.textContent = "Enlace listo. Cualquiera con este enlace verá exactamente tu matrícula y grupos elegidos.";
     els.shareDialog.showModal();
     setTimeout(() => els.shareUrl.select(), 80);
   } catch (error) {
     toast(`No se pudo compartir: ${error.message}`, { type: "error" });
-  } finally {
-    els.shareBtn.disabled = false;
   }
 }
 
